@@ -1,5 +1,6 @@
 import os
 import base64
+import json
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 import requests
@@ -9,7 +10,7 @@ app = FastAPI()
 # Load config from environment variables
 CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
+REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onrender.com/callback
 
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
@@ -280,7 +281,41 @@ HTML_CONTENT = """
 if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
     @app.get("/", response_class=HTMLResponse)
     def missing_config():
-        return "<h1>Error: Missing ONSHAPE_CLIENT_ID / ONSHAPE_CLIENT_SECRET / REDIRECT_URI in env</h1>"
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Configuration Error</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    padding: 50px;
+                    background: #f8d7da;
+                    text-align: center;
+                }
+                .error-box {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 8px;
+                    max-width: 600px;
+                    margin: 0 auto;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="error-box">
+                <h1>❌ Configuration Error</h1>
+                <p>Missing required environment variables:</p>
+                <ul style="text-align: left;">
+                    <li>ONSHAPE_CLIENT_ID</li>
+                    <li>ONSHAPE_CLIENT_SECRET</li>
+                    <li>REDIRECT_URI</li>
+                </ul>
+                <p>Please configure these in your Render.com dashboard.</p>
+            </div>
+        </body>
+        </html>
+        """
 else:
     # Serve the single HTML file
     @app.get("/", response_class=HTMLResponse)
@@ -289,7 +324,12 @@ else:
 
     @app.get("/api/status")
     def api_status():
-        return {"message": "Onshape OAuth API running", "status": "ok"}
+        return {
+            "message": "Onshape OAuth API running",
+            "status": "ok",
+            "redirect_uri_configured": REDIRECT_URI,
+            "client_id_configured": bool(CLIENT_ID)
+        }
 
     @app.get("/login")
     def login():
@@ -306,11 +346,141 @@ else:
 
     @app.get("/callback", response_class=HTMLResponse)
     async def callback(request: Request):
+        # Get all query parameters to debug
+        all_params = dict(request.query_params)
+        
         code = request.query_params.get("code")
         state = request.query_params.get("state")
+        error = request.query_params.get("error")
+        error_description = request.query_params.get("error_description")
+        
+        # If OnShape returned an error
+        if error:
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>OAuth Error</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        padding: 50px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                    }}
+                    .container {{
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }}
+                    button {{
+                        padding: 12px 24px;
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        margin-top: 20px;
+                    }}
+                    button:hover {{ background: #5568d3; }}
+                    .error {{ color: #dc3545; }}
+                    pre {{
+                        background: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 4px;
+                        overflow-x: auto;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1 class="error">❌ OAuth Error</h1>
+                    <p><strong>Error:</strong> {error}</p>
+                    <p><strong>Description:</strong> {error_description or 'No description provided'}</p>
+                    <p><strong>All params received:</strong></p>
+                    <pre>{json.dumps(all_params, indent=2)}</pre>
+                    <button onclick="window.location.href='/'">Back to Home</button>
+                </div>
+            </body>
+            </html>
+            """
+        
         if not code:
-            raise HTTPException(status_code=400, detail="Missing code in callback")
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Missing Code</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        padding: 50px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                    }}
+                    .container {{
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }}
+                    button {{
+                        padding: 12px 24px;
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        margin-top: 20px;
+                    }}
+                    button:hover {{ background: #5568d3; }}
+                    .error {{ color: #dc3545; }}
+                    pre {{
+                        background: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 4px;
+                        overflow-x: auto;
+                    }}
+                    .info {{
+                        background: #e7f3ff;
+                        padding: 15px;
+                        border-left: 4px solid #2196F3;
+                        margin: 20px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1 class="error">❌ Missing Authorization Code</h1>
+                    <p>The callback was called but no 'code' parameter was received.</p>
+                    
+                    <div class="info">
+                        <h3>Debug Information:</h3>
+                        <p><strong>Parameters received:</strong></p>
+                        <pre>{json.dumps(all_params, indent=2)}</pre>
+                        <p><strong>Expected REDIRECT_URI:</strong> {REDIRECT_URI}</p>
+                    </div>
+                    
+                    <h3>Common Issues:</h3>
+                    <ul>
+                        <li>REDIRECT_URI in Render must match exactly what's in OnShape OAuth settings</li>
+                        <li>REDIRECT_URI must be HTTPS (not HTTP)</li>
+                        <li>REDIRECT_URI must end with /callback</li>
+                        <li>Check for trailing slashes - they must match exactly</li>
+                    </ul>
+                    
+                    <button onclick="window.location.href='/'">Back to Home</button>
+                </div>
+            </body>
+            </html>
+            """
 
+        # Exchange code for tokens
         auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_header}",
@@ -321,66 +491,136 @@ else:
             "code": code,
             "redirect_uri": REDIRECT_URI
         }
-        resp = requests.post(TOKEN_URL, headers=headers, data=data)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"Token exchange failed: {resp.text}")
-
-        token_data = resp.json()
         
-        # Return HTML page with tokens displayed
-        return f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Login Success</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    max-width: 800px;
-                    margin: 50px auto;
-                    padding: 20px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    min-height: 100vh;
-                }}
-                .container {{
-                    background: white;
-                    padding: 40px;
-                    border-radius: 12px;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                }}
-                h1 {{ color: #28a745; }}
-                pre {{
-                    background: #2d2d2d;
-                    color: #f8f8f2;
-                    padding: 15px;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                }}
-                button {{
-                    padding: 12px 24px;
-                    background: #667eea;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-size: 16px;
-                    margin-top: 20px;
-                }}
-                button:hover {{
-                    background: #5568d3;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>✅ Login Successful!</h1>
-                <p>Your tokens:</p>
-                <pre>{json.dumps(token_data, indent=2)}</pre>
-                <button onclick="window.location.href='/'">Back to Home</button>
-            </div>
-        </body>
-        </html>
-        """
+        try:
+            resp = requests.post(TOKEN_URL, headers=headers, data=data)
+            if resp.status_code != 200:
+                return f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Token Exchange Failed</title>
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            padding: 50px;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            min-height: 100vh;
+                        }}
+                        .container {{
+                            background: white;
+                            padding: 40px;
+                            border-radius: 12px;
+                            max-width: 800px;
+                            margin: 0 auto;
+                        }}
+                        button {{
+                            padding: 12px 24px;
+                            background: #667eea;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-size: 16px;
+                            margin-top: 20px;
+                        }}
+                        button:hover {{ background: #5568d3; }}
+                        .error {{ color: #dc3545; }}
+                        pre {{
+                            background: #2d2d2d;
+                            color: #f8f8f2;
+                            padding: 15px;
+                            border-radius: 4px;
+                            overflow-x: auto;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1 class="error">❌ Token Exchange Failed</h1>
+                        <p><strong>Status Code:</strong> {resp.status_code}</p>
+                        <p><strong>Response:</strong></p>
+                        <pre>{resp.text}</pre>
+                        <button onclick="window.location.href='/'">Back to Home</button>
+                    </div>
+                </body>
+                </html>
+                """
+
+            token_data = resp.json()
+            
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Login Success</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        padding: 50px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                    }}
+                    .container {{
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }}
+                    h1 {{ color: #28a745; }}
+                    pre {{
+                        background: #2d2d2d;
+                        color: #f8f8f2;
+                        padding: 15px;
+                        border-radius: 4px;
+                        overflow-x: auto;
+                        font-size: 12px;
+                    }}
+                    button {{
+                        padding: 12px 24px;
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 16px;
+                        margin-top: 20px;
+                    }}
+                    button:hover {{
+                        background: #5568d3;
+                    }}
+                    .token-box {{
+                        background: #e7f3ff;
+                        padding: 15px;
+                        border-left: 4px solid #2196F3;
+                        margin: 20px 0;
+                        word-break: break-all;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>✅ Login Successful!</h1>
+                    <p>Copy these tokens to use the API:</p>
+                    <pre>{json.dumps(token_data, indent=2)}</pre>
+                    <button onclick="window.location.href='/'">Back to Home</button>
+                </div>
+            </body>
+            </html>
+            """
+        except Exception as e:
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>Error</title></head>
+            <body style="font-family: Arial; padding: 50px; background: #f8d7da;">
+                <h1>❌ Exception Occurred</h1>
+                <p><strong>Error:</strong> {str(e)}</p>
+                <button onclick="window.location.href='/'" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 20px;">Back to Home</button>
+            </body>
+            </html>
+            """
 
     @app.get("/me")
     def me(access_token: str = None):
