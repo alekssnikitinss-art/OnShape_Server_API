@@ -6,6 +6,6 @@ Holds HTML contorl and navigation panel used for controling, such as pulling or 
 **Main.py**  
 Holds the main code for the API, editable if needed.
 **Requrments**  
-Hold neccecery commands that are used when starting the server by *render.com*
+Hold neccecery commands that are used when starting the server by *render.com*  
 **Render.com**  
 Is used to start the website and allowing to communicate with OnShape via OAuth, API, Diffrent ID's and for fetching files.
