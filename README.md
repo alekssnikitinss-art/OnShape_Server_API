@@ -17,4 +17,7 @@ The server can also start as soon as an iteration is performed, it can disconnec
   Here will be a link to start the server remotely, if necessary and if the server did not start when the iteration is performed (Open server via link.) Link to open the server remotely   
   https://api.render.com/deploy/srv-d49ikkumcj7s73egu370?key=UL0PHK6ocok
   
-  The rendering time depends greatly on the amount of data or imports or other information being read, the time can reach up to 1+ minutes, currently the approximate observed time is about 15-30sec.
+  The rendering time depends greatly on the amount of data or imports or other information being read, the time can reach up to 1+ minutes, currently the approximate observed time is about _1 min to around 5 min, depending on what is new, and what has to be overrided (13.11.2025)_   
+    
+  (13.11.2025) Website is able to start correctly, make contact with the OnShape API to request authorization but cannot save token "_Token Exchange Failed
+Status Code: 400_". Also it is able to check API working statuss. 
