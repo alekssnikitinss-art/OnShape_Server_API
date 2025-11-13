@@ -17,5 +17,4 @@ The server can also start as soon as an iteration is performed, it can disconnec
   Here will be a link to start the server remotely, if necessary and if the server did not start when the iteration is performed (Open server via link.) Link to open the server remotely   
   https://api.render.com/deploy/srv-d49ikkumcj7s73egu370?key=UL0PHK6ocok
   
-  The rendering time depends greatly on the amount of data or imports or other information being read, the time can reach up to 1+ minutes, currently the approximate observed time is about  
-  - 15-30sec.
+  The rendering time depends greatly on the amount of data or imports or other information being read, the time can reach up to 1+ minutes, currently the approximate observed time is about 15-30sec.
