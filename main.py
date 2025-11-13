@@ -1,15 +1,19 @@
 import os
 import base64
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import requests
 
 app = FastAPI()
 
-#  Load config from environment variables
+# Mount static files directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Load config from environment variables
 CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onrender.com/callback
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
@@ -21,19 +25,24 @@ if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
     def missing_config():
         return {"error": "Missing ONSHAPE_CLIENT_ID / ONSHAPE_CLIENT_SECRET / REDIRECT_URI in env"}
 else:
+    # Serve your HTML website at root
     @app.get("/")
     def root():
-        return {"message": "Onshape OAuth demo running"}
+        return FileResponse("static/index.html")
+    
+    # API endpoints remain the same but now under /api prefix
+    @app.get("/api/status")
+    def api_status():
+        return {"message": "Onshape OAuth API running"}
 
     @app.get("/login")
     def login():
-        # Veido autorizācijas URL un novirza lietotāju
         params = {
             "response_type": "code",
             "client_id": CLIENT_ID,
             "redirect_uri": REDIRECT_URI,
             "scope": SCOPE,
-            "state": "aleks_state_123"  # vari ģenerēt drošāku state
+            "state": "aleks_state_123"
         }
         from urllib.parse import urlencode
         url = AUTH_URL + "?" + urlencode(params)
@@ -41,14 +50,11 @@ else:
 
     @app.get("/callback")
     async def callback(request: Request):
-        # Onshape atgriež ?code=...&state=...
         code = request.query_params.get("code")
         state = request.query_params.get("state")
         if not code:
             raise HTTPException(status_code=400, detail="Missing code in callback")
 
-        # Exchange code for tokens
-        # Onshape atļauj basic auth vai client_id/client_secret kā body. Šeit izmanto basic auth.
         auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_header}",
@@ -64,21 +70,14 @@ else:
             raise HTTPException(status_code=500, detail=f"Token exchange failed: {resp.text}")
 
         token_data = resp.json()
-        # Saglabā tokenus droši — šeit tikai parāda rezultātu (neuzglabāt repo!)
-        # Parasti saglabā DB vai kā Secrets ar šifrēšanu.
         return JSONResponse(content=token_data)
 
     @app.get("/me")
     def me(access_token: str = None):
-        """
-        Demonstrācija — izsauc Onshape API ar access_token.
-        Vari arī glabāt access_token server-side un ignorēt query param.
-        """
         if not access_token:
             return {"error": "Provide access_token as query param for demo, or implement server-side storage."}
 
-        # Piemēra endpoint — pielāgo pēc vajadzības (Onshape API resourse)
-        profile_url = "https://cad.onshape.com/api/users/session"  # piemērs; ja nedarbojas, pielāgo
+        profile_url = "https://cad.onshape.com/api/users/session"
         headers = {"Authorization": f"Bearer {access_token}"}
         r = requests.get(profile_url, headers=headers)
         if r.status_code != 200:
