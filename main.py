@@ -21,7 +21,8 @@ print("DEBUG ENV:", {
 
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
-SCOPE = "SCOPE = "OAuth2ReadPII OAuth2Read OAuth2Write OAuth2Delete OAuth2Share"
+SCOPE = "OAuth2ReadPII OAuth2Read OAuth2Write OAuth2Delete OAuth2Share"
+
 
 
 # Single HTML file content
