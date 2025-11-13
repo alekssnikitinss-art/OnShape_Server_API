@@ -10,9 +10,12 @@ Hold neccecery commands that are used when starting the server by *render.com*
 **Render.com**  
 Is used to start the website and allowing to communicate with OnShape via OAuth, API, Diffrent ID's and for fetching files.
 
-Link lai piekļūtu serverim  - https://onshape-server-api.onrender.com/  
-Serveris spēj palaisties arī tikko kā notiek iterācija, tas var atslēgties, tad ja 15 min nav biijusi aktivitāte.  
+Link to access the server - https://onshape-server-api.onrender.com/  
+The server can also start as soon as an iteration is performed, it can disconnect if there has been no activity for 15 minutes.
 
-  Šeit būs link lai palaistu serveri no tālienes, ja tas ir nepieciešams un ja serveris nestartējās tad kad tiek veikta iterācija (Atvērts serveris via link.)
-  Link servera atveršanai no tālienes -  https://api.render.com/deploy/srv-d49ikkumcj7s73egu370?key=UL0PHK6ocok  
-  Sartēšānās laiks ir ļoti atkarīgs no datu vai importu vai citas infomācijas daudzuma nolasīšanu, laiks var sasniegt pat 1+ min, šobrid aptuvenais novērotais laiks ir apmēram - 15-30sec.
+  
+  Here will be a link to start the server remotely, if necessary and if the server did not start when the iteration is performed (Open server via link.) Link to open the server remotely   
+  https://api.render.com/deploy/srv-d49ikkumcj7s73egu370?key=UL0PHK6ocok
+  
+  The rendering time depends greatly on the amount of data or imports or other information being read, the time can reach up to 1+ minutes, currently the approximate observed time is about  
+  - 15-30sec.
