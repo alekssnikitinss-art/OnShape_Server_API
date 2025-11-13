@@ -1,0 +1,17 @@
+If everything works correctly, implement this structure, to have a better overview for files, better editing  and overall better and more ogranized folders.
+
+my_project/
+├─ main.py          # Starts FastAPI app
+├─ api/
+│   ├─ __init__.py
+│   └─ routes.py    # All API endpoints
+├─ web/
+│   ├─ __init__.py
+│   └─ pages.py     # HTML pages endpoints
+├─ templates/
+│   └─ index.html
+├─ static/
+│   ├─ style.css
+│   └─ script.js
+└─ utils/
+    └─ helpers.py
