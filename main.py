@@ -12,6 +12,13 @@ CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onrender.com/callback
 
+print("DEBUG ENV:", {
+    "CLIENT_ID": CLIENT_ID,
+    "CLIENT_SECRET": "SET" if CLIENT_SECRET else "MISSING",
+    "REDIRECT_URI": REDIRECT_URI
+})
+
+
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
 SCOPE = "documents:read documents:write"
