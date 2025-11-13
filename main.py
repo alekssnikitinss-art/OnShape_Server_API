@@ -8,14 +8,14 @@ import requests
 app = FastAPI()
 
 # Konfigurācija no vides mainīgajiem
-CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")  # piem. https://tavsprojekts.onrender.com/callback
+CLIENT_ID = os.getenv("NU6TDZ463AG3364RNS4WKFVBCQWQ24NOPL6KZLA=")
+CLIENT_SECRET = os.getenv("DFQ3OSNO5YDUY7MPLPL6ZMI3UOJD23XYEAHOLO5ULFLACGMHTP2A====")
+REDIRECT_URI = os.getenv("https://onshape-server-api.onrender.com/callback")  # piem. https://tavsprojekts.onrender.com/callback
 # Onshape OAuth endpoints (standarta)
-AUTH_URL = "https://oauth.onshape.com/oauth/authorize"
-TOKEN_URL = "https://oauth.onshape.com/oauth/token"
+AUTH_URL = "https://cad.onshape.com/oauth/authorize"
+TOKEN_URL = "https://cad.onshape.com/oauth/token"
 # Skatuves: izvēlies nepieciešamo scope saskaņā ar Onshape Developer Console
-SCOPE = "openid profile email"  
+SCOPE = "documents:read documents:write"  
 
 if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
     @app.get("/")
