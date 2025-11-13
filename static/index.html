@@ -1,1 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OnShape API Control Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #1e1e1e;
+      color: #fff;
+      padding: 30px;
+      margin: 0;
+    }
+    h1 { color: #4da3ff; }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #4da3ff;
+      color: white;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background-color: #6ab0ff;
+    }
+    #output {
+      margin-top: 20px;
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-width: 700px;
+    }
+  </style>
+</head>
+<body>
+  <h1>OnShape API Control Panel</h1>
 
+  <button id="login-btn">Login</button>
+  <button id="test-btn">Test Documents</button>
+
+  <div id="output">Waiting for action...</div>
+
+  <script>
+    const output = document.getElementById("output");
+
+    document.getElementById("login-btn").addEventListener("click", () => {
+      // Redirect to /login (handled by FastAPI)
+      window.location.href = "/login";
+    });
+
+    document.getElementById("test-btn").addEventListener("click", async () => {
+      output.innerText = "Fetching data...";
+      try {
+        const res = await fetch("/test_onshape");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        output.innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        output.innerText = `Error: ${err.message}`;
+      }
+    });
+  </script>
+</body>
+</html>
