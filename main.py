@@ -286,35 +286,56 @@ HTML_CONTENT = """
         
         // File upload handler
         function handleFileUpload(event) {
+            console.log('File upload triggered');
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file) {
+                console.log('No file selected');
+                return;
+            }
+            
+            console.log('File selected:', file.name);
+            showResult('Loading file...', 'info');
             
             const reader = new FileReader();
             reader.onload = function(e) {
+                console.log('File loaded');
                 const content = e.target.result;
                 
                 if (file.name.endsWith('.json')) {
                     try {
                         currentData = JSON.parse(content);
+                        console.log('JSON parsed:', currentData);
                         displayUploadedData(currentData);
                     } catch (error) {
+                        console.error('JSON parse error:', error);
                         showResult(`Error parsing JSON: ${error.message}`, 'error');
                     }
                 } else if (file.name.endsWith('.csv')) {
+                    console.log('Parsing CSV');
                     parseCSV(content);
                 }
             };
+            
+            reader.onerror = function(error) {
+                console.error('File read error:', error);
+                showResult('Error reading file', 'error');
+            };
+            
             reader.readAsText(file);
         }
         
         function parseCSV(csv) {
-            const lines = csv.split('\\n').filter(line => line.trim());
+            console.log('Parsing CSV content');
+            const lines = csv.split('\n').filter(line => line.trim());
+            console.log('CSV lines:', lines.length);
+            
             if (lines.length < 2) {
                 showResult('CSV file is empty or invalid', 'error');
                 return;
             }
             
             const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            console.log('CSV headers:', headers);
             const data = [];
             
             for (let i = 1; i < lines.length; i++) {
@@ -325,6 +346,8 @@ HTML_CONTENT = """
                 });
                 data.push(row);
             }
+            
+            console.log('Parsed CSV data:', data);
             
             // Detect data type based on headers
             if (headers.includes('Part Number') || headers.includes('partNumber')) {
@@ -339,25 +362,33 @@ HTML_CONTENT = """
         }
         
         function displayUploadedData(data) {
+            console.log('Displaying uploaded data:', data);
             // Try to detect data type and display appropriately
             if (data.bomTable && data.bomTable.items) {
-                displayBOM(data, true);
+                console.log('Detected BOM data');
+                displayBOM(data);
             } else if (Array.isArray(data) && data[0]) {
+                console.log('Detected array data');
                 if (data[0].lowX !== undefined || data[0]['Length X (mm)'] !== undefined) {
-                    displayBoundingBoxes(data, true);
+                    console.log('Detected bounding box data');
+                    displayBoundingBoxes(data);
                 } else if (data[0].partNumber !== undefined || data[0]['Part Number'] !== undefined) {
+                    console.log('Detected BOM array format');
                     currentData = { bomTable: { items: data } };
-                    displayBOM(currentData, true);
+                    displayBOM(currentData);
                 } else {
-                    displayGenericTable(data, true);
+                    console.log('Displaying generic table');
+                    displayGenericTable(data);
                 }
             } else {
+                console.log('Unknown data format');
                 showResult('Uploaded data format not recognized. Showing raw data:', 'error');
-                showResult(JSON.stringify(data, null, 2), 'info');
+                document.getElementById('results').innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
             }
         }
         
-        function displayGenericTable(data, editable = false) {
+        function displayGenericTable(data) {
+            console.log('Displaying generic table');
             if (!data || data.length === 0) {
                 showResult('No data to display', 'error');
                 return;
@@ -373,25 +404,15 @@ HTML_CONTENT = """
                 html += '<tr>';
                 headers.forEach(header => {
                     const value = row[header] || '';
-                    if (editable) {
-                        html += `<td class="editable-cell" contenteditable="true" data-row="${rowIndex}" data-field="${header}">${value}</td>`;
-                    } else {
-                        html += `<td>${value}</td>`;
-                    }
+                    html += `<td class="editable-cell" contenteditable="true" data-row="${rowIndex}" data-field="${header}">${value}</td>`;
                 });
                 html += '</tr>';
             });
             html += '</table>';
-            
-            if (editable) {
-                html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Changes are saved automatically.</p>';
-            }
+            html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Changes are saved automatically.</p>';
             
             document.getElementById('results').innerHTML = html;
-            
-            if (editable) {
-                attachEditListeners();
-            }
+            attachEditListeners();
         }
         
         function loginWithOnShape() {
@@ -399,6 +420,7 @@ HTML_CONTENT = """
         }
         
         async function getDocuments() {
+            console.log('Getting documents');
             const accessToken = document.getElementById('accessToken').value;
             if (!accessToken) {
                 showResult('Please enter an access token or login first', 'error');
@@ -412,10 +434,17 @@ HTML_CONTENT = """
                         'Authorization': `Bearer ${accessToken}`
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Documents received:', data);
                 currentData = data;
                 displayDocuments(data);
             } catch (error) {
+                console.error('Error fetching documents:', error);
                 showResult(`Error: ${error.message}`, 'error');
             }
         }
