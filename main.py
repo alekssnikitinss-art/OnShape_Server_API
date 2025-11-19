@@ -713,15 +713,15 @@ HTML_CONTENT = """
             
             // Handle BOM data
             if (currentData.bomTable && currentData.bomTable.items) {
-                csv = 'Item,Part Number,Name,Quantity,Description\n';
+                csv = 'Item,Part Number,Name,Quantity,Description' + String.fromCharCode(10);
                 currentData.bomTable.items.forEach(item => {
-                    csv += `"${item.item || ''}","${item.partNumber || ''}","${item.name || ''}","${item.quantity || ''}","${item.description || ''}"\n`;
+                    csv += '"' + (item.item || '') + '","' + (item.partNumber || '') + '","' + (item.name || '') + '","' + (item.quantity || '') + '","' + (item.description || '') + '"' + String.fromCharCode(10);
                 });
             }
             // Handle bounding box data
             else if (Array.isArray(currentData) && currentData.length > 0) {
                 if (currentData[0].lowX !== undefined || currentData[0].lengthX !== undefined) {
-                    csv = 'Part ID,Length X (mm),Length Y (mm),Length Z (mm),Volume (mm³)\n';
+                    csv = 'Part ID,Length X (mm),Length Y (mm),Length Z (mm),Volume (mm³)' + String.fromCharCode(10);
                     currentData.forEach(box => {
                         let lengthX, lengthY, lengthZ, volume, partId;
                         
@@ -739,14 +739,14 @@ HTML_CONTENT = """
                             partId = box.partId || 'Unknown';
                         }
                         
-                        csv += `"${partId}","${lengthX}","${lengthY}","${lengthZ}","${volume}"\n`;
+                        csv += '"' + partId + '","' + lengthX + '","' + lengthY + '","' + lengthZ + '","' + volume + '"' + String.fromCharCode(10);
                     });
                 } else {
                     // Generic data export
                     const headers = Object.keys(currentData[0]);
-                    csv = headers.join(',') + '\n';
+                    csv = headers.join(',') + String.fromCharCode(10);
                     currentData.forEach(row => {
-                        csv += headers.map(h => `"${row[h] || ''}"`).join(',') + '\n';
+                        csv += headers.map(h => '"' + (row[h] || '') + '"').join(',') + String.fromCharCode(10);
                     });
                 }
             }
@@ -759,7 +759,7 @@ HTML_CONTENT = """
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `onshape-data-${Date.now()}.csv`;
+            a.download = 'onshape-data-' + Date.now() + '.csv';
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -771,7 +771,7 @@ HTML_CONTENT = """
             if (type === 'error') className = 'error';
             if (type === 'success') className = 'success';
             
-            resultsDiv.innerHTML = `<div class="${className}">${message}</div>`;
+            resultsDiv.innerHTML = '<div class="' + className + '">' + message + '</div>';
         }
     </script>
 </body>
