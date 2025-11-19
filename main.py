@@ -178,22 +178,6 @@ HTML_CONTENT = """
             background: #f5f5f5;
         }
         
-        .editable-cell {
-            background: #fff9e6;
-            cursor: text;
-        }
-        
-        .editable-cell:hover {
-            background: #fff3cd;
-        }
-        
-        input.cell-input {
-            width: 100%;
-            padding: 4px;
-            border: 1px solid #667eea;
-            font-size: 14px;
-        }
-        
         .download-btn {
             background: #28a745;
         }
