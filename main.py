@@ -14,7 +14,8 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onr
 
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
-SCOPE = "documents:read documents:write"
+# OnShape uses specific OAuth scopes - adjust based on your OAuth app permissions
+SCOPE = "OAuth2Read OAuth2Write"  # Common OnShape scopes
 
 # Single HTML file content
 HTML_CONTENT = """
