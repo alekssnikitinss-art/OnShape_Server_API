@@ -21,3 +21,5 @@ The server can also start as soon as an iteration is performed, it can disconnec
     
   (13.11.2025) Website is able to start correctly, make contact with the OnShape API to request authorization but cannot save token "_Token Exchange Failed
 Status Code: 400_". Also it is able to check API working statuss. 
+
+  (19.11.2025) Website is able to start corretly, make conctact with OnShape API, to request OAuth for authorization, Is able to save tokens that can be used for *1* Hours, is able to give access key, is able to fetch documents, is able to save, pull, and scan for ID's, Is able to save values in *JSON* or *CSV* file format, is able to get *BOM, Bounding Box, List of my documents, and get document elements*
