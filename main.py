@@ -178,6 +178,22 @@ HTML_CONTENT = """
             background: #f5f5f5;
         }
         
+        .editable-cell {
+            background: #fff9e6;
+            cursor: text;
+        }
+        
+        .editable-cell:hover {
+            background: #fff3cd;
+        }
+        
+        input.cell-input {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #667eea;
+            font-size: 14px;
+        }
+        
         .download-btn {
             background: #28a745;
         }
@@ -243,17 +259,140 @@ HTML_CONTENT = """
         </div>
         
         <div class="section">
+            <h2>Upload & Edit BOM</h2>
+            <div class="input-group">
+                <label for="fileUpload">Upload CSV or JSON File:</label>
+                <input type="file" id="fileUpload" accept=".csv,.json" onchange="handleFileUpload(event)">
+            </div>
+            <div class="button-group">
+                <button onclick="saveEditedData()">💾 Save Edited Data</button>
+                <button onclick="clearData()">🗑️ Clear All</button>
+            </div>
+        </div>
+        
+        <div class="section">
             <h2>Results</h2>
             <div class="button-group">
                 <button class="download-btn" onclick="downloadAsJSON()">⬇️ Download as JSON</button>
                 <button class="download-btn" onclick="downloadAsCSV()">⬇️ Download as CSV</button>
             </div>
-            <div id="results">No data yet. Login and fetch some data!</div>
+            <div id="results">No data yet. Login and fetch some data or upload a file!</div>
         </div>
     </div>
 
     <script>
         let currentData = null;
+        let editMode = false;
+        
+        // File upload handler
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                
+                if (file.name.endsWith('.json')) {
+                    try {
+                        currentData = JSON.parse(content);
+                        displayUploadedData(currentData);
+                    } catch (error) {
+                        showResult(`Error parsing JSON: ${error.message}`, 'error');
+                    }
+                } else if (file.name.endsWith('.csv')) {
+                    parseCSV(content);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseCSV(csv) {
+            const lines = csv.split('\\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                showResult('CSV file is empty or invalid', 'error');
+                return;
+            }
+            
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                data.push(row);
+            }
+            
+            // Detect data type based on headers
+            if (headers.includes('Part Number') || headers.includes('partNumber')) {
+                currentData = { bomTable: { items: data } };
+            } else if (headers.includes('Length X (mm)') || headers.includes('lowX')) {
+                currentData = data;
+            } else {
+                currentData = data;
+            }
+            
+            displayUploadedData(currentData);
+        }
+        
+        function displayUploadedData(data) {
+            // Try to detect data type and display appropriately
+            if (data.bomTable && data.bomTable.items) {
+                displayBOM(data, true);
+            } else if (Array.isArray(data) && data[0]) {
+                if (data[0].lowX !== undefined || data[0]['Length X (mm)'] !== undefined) {
+                    displayBoundingBoxes(data, true);
+                } else if (data[0].partNumber !== undefined || data[0]['Part Number'] !== undefined) {
+                    currentData = { bomTable: { items: data } };
+                    displayBOM(currentData, true);
+                } else {
+                    displayGenericTable(data, true);
+                }
+            } else {
+                showResult('Uploaded data format not recognized. Showing raw data:', 'error');
+                showResult(JSON.stringify(data, null, 2), 'info');
+            }
+        }
+        
+        function displayGenericTable(data, editable = false) {
+            if (!data || data.length === 0) {
+                showResult('No data to display', 'error');
+                return;
+            }
+            
+            const headers = Object.keys(data[0]);
+            let html = '<h3>Data Table (Editable)</h3><table>';
+            html += '<tr>';
+            headers.forEach(h => html += `<th>${h}</th>`);
+            html += '</tr>';
+            
+            data.forEach((row, rowIndex) => {
+                html += '<tr>';
+                headers.forEach(header => {
+                    const value = row[header] || '';
+                    if (editable) {
+                        html += `<td class="editable-cell" contenteditable="true" data-row="${rowIndex}" data-field="${header}">${value}</td>`;
+                    } else {
+                        html += `<td>${value}</td>`;
+                    }
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            
+            if (editable) {
+                html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Changes are saved automatically.</p>';
+            }
+            
+            document.getElementById('results').innerHTML = html;
+            
+            if (editable) {
+                attachEditListeners();
+            }
+        }
         
         function loginWithOnShape() {
             window.location.href = '/login';
@@ -402,20 +541,22 @@ HTML_CONTENT = """
                 return;
             }
             
-            let html = '<h3>Bill of Materials</h3><table>';
+            let html = '<h3>Bill of Materials (Editable)</h3><table>';
             html += '<tr><th>Item</th><th>Part Number</th><th>Name</th><th>Quantity</th><th>Description</th></tr>';
             
-            data.bomTable.items.forEach(item => {
+            data.bomTable.items.forEach((item, index) => {
                 html += `<tr>
-                    <td>${item.item || '-'}</td>
-                    <td>${item.partNumber || '-'}</td>
-                    <td>${item.name || '-'}</td>
-                    <td>${item.quantity || '-'}</td>
-                    <td>${item.description || '-'}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="item">${item.item || item.Item || '-'}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="partNumber">${item.partNumber || item['Part Number'] || '-'}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="name">${item.name || item.Name || '-'}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="quantity">${item.quantity || item.Quantity || '-'}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="description">${item.description || item.Description || '-'}</td>
                 </tr>`;
             });
             html += '</table>';
+            html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Changes are saved automatically.</p>';
             document.getElementById('results').innerHTML = html;
+            attachEditListeners();
         }
         
         function displayBoundingBoxes(data) {
@@ -424,26 +565,41 @@ HTML_CONTENT = """
                 return;
             }
             
-            let html = '<h3>Bounding Boxes (Millimeters)</h3><table>';
-            html += '<tr><th>Part ID</th><th>Length X (mm)</th><th>Length Y (mm)</th><th>Length Z (mm)</th><th>Volume</th></tr>';
+            let html = '<h3>Bounding Boxes - Millimeters (Editable)</h3><table>';
+            html += '<tr><th>Part ID</th><th>Length X (mm)</th><th>Length Y (mm)</th><th>Length Z (mm)</th><th>Volume (mm³)</th></tr>';
             
-            data.forEach(box => {
-                // Convert from meters to millimeters
-                const lengthX = ((box.highX - box.lowX) * 1000).toFixed(2);
-                const lengthY = ((box.highY - box.lowY) * 1000).toFixed(2);
-                const lengthZ = ((box.highZ - box.lowZ) * 1000).toFixed(2);
-                const volume = (lengthX * lengthY * lengthZ).toFixed(2);
+            data.forEach((box, index) => {
+                // Handle both raw API data and uploaded CSV data
+                let lengthX, lengthY, lengthZ, volume, partId;
+                
+                if (box['Length X (mm)']) {
+                    // CSV format
+                    lengthX = box['Length X (mm)'];
+                    lengthY = box['Length Y (mm)'];
+                    lengthZ = box['Length Z (mm)'];
+                    volume = box['Volume (mm³)'];
+                    partId = box['Part ID'] || 'Unknown';
+                } else {
+                    // API format - convert from meters to millimeters
+                    lengthX = ((box.highX - box.lowX) * 1000).toFixed(2);
+                    lengthY = ((box.highY - box.lowY) * 1000).toFixed(2);
+                    lengthZ = ((box.highZ - box.lowZ) * 1000).toFixed(2);
+                    volume = (lengthX * lengthY * lengthZ).toFixed(2);
+                    partId = box.partId || 'Unknown';
+                }
                 
                 html += `<tr>
-                    <td>${box.partId || 'Unknown'}</td>
-                    <td>${lengthX}</td>
-                    <td>${lengthY}</td>
-                    <td>${lengthZ}</td>
-                    <td>${volume} mm³</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="partId">${partId}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthX">${lengthX}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthY">${lengthY}</td>
+                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthZ">${lengthZ}</td>
+                    <td>${volume}</td>
                 </tr>`;
             });
             html += '</table>';
+            html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Volume is auto-calculated.</p>';
             document.getElementById('results').innerHTML = html;
+            attachEditListeners();
         }
         
         function downloadAsJSON() {
@@ -462,6 +618,62 @@ HTML_CONTENT = """
             URL.revokeObjectURL(url);
         }
         
+        function attachEditListeners() {
+            document.querySelectorAll('.editable-cell').forEach(cell => {
+                cell.addEventListener('blur', function() {
+                    const row = parseInt(this.dataset.row);
+                    const field = this.dataset.field;
+                    const newValue = this.textContent.trim();
+                    
+                    // Update the data
+                    if (currentData.bomTable && currentData.bomTable.items) {
+                        currentData.bomTable.items[row][field] = newValue;
+                    } else if (Array.isArray(currentData)) {
+                        currentData[row][field] = newValue;
+                    }
+                });
+                
+                cell.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.blur();
+                    }
+                });
+            });
+        }
+        
+        function saveEditedData() {
+            if (!currentData) {
+                alert('No data to save. Please load some data first.');
+                return;
+            }
+            
+            // Show success message
+            const tempDiv = document.createElement('div');
+            tempDiv.className = 'success';
+            tempDiv.textContent = '✅ Data saved! Use the download buttons to save to your computer.';
+            tempDiv.style.position = 'fixed';
+            tempDiv.style.top = '20px';
+            tempDiv.style.right = '20px';
+            tempDiv.style.padding = '15px';
+            tempDiv.style.borderRadius = '8px';
+            tempDiv.style.zIndex = '1000';
+            tempDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+            document.body.appendChild(tempDiv);
+            
+            setTimeout(() => {
+                tempDiv.remove();
+            }, 3000);
+        }
+        
+        function clearData() {
+            if (confirm('Are you sure you want to clear all data?')) {
+                currentData = null;
+                document.getElementById('results').innerHTML = 'No data. Upload a file or fetch from OnShape!';
+                document.getElementById('fileUpload').value = '';
+            }
+        }
+        
         function downloadAsCSV() {
             if (!currentData) {
                 alert('No data to download. Please fetch some data first.');
@@ -472,21 +684,42 @@ HTML_CONTENT = """
             
             // Handle BOM data
             if (currentData.bomTable && currentData.bomTable.items) {
-                csv = 'Item,Part Number,Name,Quantity,Description\\n';
+                csv = 'Item,Part Number,Name,Quantity,Description\n';
                 currentData.bomTable.items.forEach(item => {
-                    csv += `"${item.item || ''}","${item.partNumber || ''}","${item.name || ''}","${item.quantity || ''}","${item.description || ''}"\\n`;
+                    csv += `"${item.item || ''}","${item.partNumber || ''}","${item.name || ''}","${item.quantity || ''}","${item.description || ''}"\n`;
                 });
             }
             // Handle bounding box data
-            else if (Array.isArray(currentData) && currentData[0] && currentData[0].lowX !== undefined) {
-                csv = 'Part ID,Length X (mm),Length Y (mm),Length Z (mm),Volume (mm³)\\n';
-                currentData.forEach(box => {
-                    const lengthX = ((box.highX - box.lowX) * 1000).toFixed(2);
-                    const lengthY = ((box.highY - box.lowY) * 1000).toFixed(2);
-                    const lengthZ = ((box.highZ - box.lowZ) * 1000).toFixed(2);
-                    const volume = (lengthX * lengthY * lengthZ).toFixed(2);
-                    csv += `"${box.partId || 'Unknown'}","${lengthX}","${lengthY}","${lengthZ}","${volume}"\\n`;
-                });
+            else if (Array.isArray(currentData) && currentData.length > 0) {
+                if (currentData[0].lowX !== undefined || currentData[0].lengthX !== undefined) {
+                    csv = 'Part ID,Length X (mm),Length Y (mm),Length Z (mm),Volume (mm³)\n';
+                    currentData.forEach(box => {
+                        let lengthX, lengthY, lengthZ, volume, partId;
+                        
+                        if (box.lengthX) {
+                            lengthX = box.lengthX;
+                            lengthY = box.lengthY;
+                            lengthZ = box.lengthZ;
+                            volume = (lengthX * lengthY * lengthZ).toFixed(2);
+                            partId = box.partId || 'Unknown';
+                        } else {
+                            lengthX = ((box.highX - box.lowX) * 1000).toFixed(2);
+                            lengthY = ((box.highY - box.lowY) * 1000).toFixed(2);
+                            lengthZ = ((box.highZ - box.lowZ) * 1000).toFixed(2);
+                            volume = (lengthX * lengthY * lengthZ).toFixed(2);
+                            partId = box.partId || 'Unknown';
+                        }
+                        
+                        csv += `"${partId}","${lengthX}","${lengthY}","${lengthZ}","${volume}"\n`;
+                    });
+                } else {
+                    // Generic data export
+                    const headers = Object.keys(currentData[0]);
+                    csv = headers.join(',') + '\n';
+                    currentData.forEach(row => {
+                        csv += headers.map(h => `"${row[h] || ''}"`).join(',') + '\n';
+                    });
+                }
             }
             else {
                 alert('Current data format not supported for CSV export');
