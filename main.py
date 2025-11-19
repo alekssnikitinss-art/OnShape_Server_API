@@ -162,13 +162,13 @@ HTML_CONTENT = """
             <button onclick="checkStatus()">📊 Check API Status</button>
         </div>
         
-        <div class="input-group" id="tokenSection" style="display: none;">
+        <div class="input-group" id="tokenSection">
             <label for="accessToken">Access Token:</label>
-            <input type="text" id="accessToken" placeholder="Paste your access token here">
+            <input type="text" id="accessToken" placeholder="Paste your access token here or login to get one">
             <button onclick="getUserInfo()" style="margin-top: 10px; width: 100%;">👤 Get User Info</button>
         </div>
         
-        <div class="input-group" id="refreshSection" style="display: none;">
+        <div class="input-group" id="refreshSection">
             <label for="refreshToken">Refresh Token:</label>
             <input type="text" id="refreshToken" placeholder="Paste your refresh token here">
             <button onclick="refreshAccessToken()" style="margin-top: 10px; width: 100%;">🔄 Refresh Token</button>
