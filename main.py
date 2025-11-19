@@ -1,5 +1,4 @@
-
-# Load config fromimport os
+import os
 import base64
 import json
 from fastapi import FastAPI, Request, HTTPException
