@@ -12,8 +12,8 @@ CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onrender.com/callback
 
-AUTH_URL = "https://cad.onshape.com/oauth/authorize"
-TOKEN_URL = "https://cad.onshape.com/oauth/token"
+AUTH_URL = "https://oauth.onshape.com/oauth/authorize"
+TOKEN_URL = "https://oauth.onshape.com/oauth/token"
 # OnShape uses specific OAuth scopes - adjust based on your OAuth app permissions
 SCOPE = "OAuth2Read OAuth2Write"  # Common OnShape scopes
 
@@ -325,11 +325,15 @@ else:
 
     @app.get("/api/status")
     def api_status():
+        # Check for trailing slash in REDIRECT_URI
+        has_trailing_slash = REDIRECT_URI.endswith('/')
         return {
             "message": "Onshape OAuth API running",
             "status": "ok",
             "redirect_uri_configured": REDIRECT_URI,
-            "client_id_configured": bool(CLIENT_ID)
+            "has_trailing_slash": has_trailing_slash,
+            "client_id_configured": bool(CLIENT_ID),
+            "note": "Make sure REDIRECT_URI in Render matches EXACTLY with OnShape OAuth settings (including trailing slashes)"
         }
 
     @app.get("/login")
