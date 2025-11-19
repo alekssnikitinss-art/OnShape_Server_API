@@ -12,18 +12,9 @@ CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")  # e.g., https://onshape-server-api.onrender.com/callback
 
-print("DEBUG ENV:", {
-    "CLIENT_ID": CLIENT_ID,
-    "CLIENT_SECRET": "SET" if CLIENT_SECRET else "MISSING",
-    "REDIRECT_URI": REDIRECT_URI
-})
-
-
 AUTH_URL = "https://cad.onshape.com/oauth/authorize"
 TOKEN_URL = "https://cad.onshape.com/oauth/token"
-SCOPE = "OAuth2ReadPII OAuth2Read OAuth2Write OAuth2Delete OAuth2Share"
-
-
+SCOPE = "documents:read documents:write"
 
 # Single HTML file content
 HTML_CONTENT = """
@@ -363,6 +354,9 @@ else:
         error = request.query_params.get("error")
         error_description = request.query_params.get("error_description")
         
+        print(f"DEBUG - Callback received: code={'present' if code else 'missing'}, state={state}")
+        print(f"DEBUG - REDIRECT_URI being used: {REDIRECT_URI}")
+        
         # If OnShape returned an error
         if error:
             return f"""
@@ -501,9 +495,23 @@ else:
             "redirect_uri": REDIRECT_URI
         }
         
+        print(f"DEBUG - Token request data: {data}")
+        print(f"DEBUG - Token URL: {TOKEN_URL}")
+        
         try:
-            resp = requests.post(TOKEN_URL, headers=headers, data=data)
+            resp = requests.post(TOKEN_URL, headers=headers, data=data, timeout=10)
+            
+            print(f"DEBUG - Response status: {resp.status_code}")
+            print(f"DEBUG - Response body: {resp.text}")
+            
             if resp.status_code != 200:
+                # Try to parse error details
+                try:
+                    error_data = resp.json()
+                    error_detail = json.dumps(error_data, indent=2)
+                except:
+                    error_detail = resp.text
+                
                 return f"""
                 <!DOCTYPE html>
                 <html>
@@ -542,15 +550,35 @@ else:
                             border-radius: 4px;
                             overflow-x: auto;
                         }}
+                        .debug-info {{
+                            background: #fff3cd;
+                            padding: 15px;
+                            border-left: 4px solid #ffc107;
+                            margin: 20px 0;
+                        }}
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <h1 class="error">❌ Token Exchange Failed</h1>
                         <p><strong>Status Code:</strong> {resp.status_code}</p>
-                        <p><strong>Response:</strong></p>
-                        <pre>{resp.text}</pre>
-                        <button onclick="window.location.href='/'">Back to Home</button>
+                        <p><strong>Error Response:</strong></p>
+                        <pre>{error_detail}</pre>
+                        
+                        <div class="debug-info">
+                            <h3>Debug Information:</h3>
+                            <p><strong>Authorization code received:</strong> {'Yes (hidden for security)' if code else 'No'}</p>
+                            <p><strong>REDIRECT_URI used:</strong> {REDIRECT_URI}</p>
+                            <p><strong>Possible causes:</strong></p>
+                            <ul>
+                                <li>REDIRECT_URI doesn't match OnShape OAuth settings exactly</li>
+                                <li>Authorization code already used (codes are single-use)</li>
+                                <li>Authorization code expired (valid for ~10 minutes)</li>
+                                <li>CLIENT_ID or CLIENT_SECRET is incorrect</li>
+                            </ul>
+                        </div>
+                        
+                        <button onclick="window.location.href='/'">Try Again</button>
                     </div>
                 </body>
                 </html>
