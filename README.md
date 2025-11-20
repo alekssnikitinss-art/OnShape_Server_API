@@ -25,4 +25,4 @@ Status Code: 400_". Also it is able to check API working statuss.
   (19.11.2025) Website is able to start corretly, make conctact with OnShape API, to request OAuth for authorization, Is able to save tokens that can be used for *1* Hours, is able to give access key, is able to fetch documents, is able to save, pull, and scan for ID's, Is able to save values in *JSON* or *CSV* file format, is able to get *BOM, Bounding Box, List of my documents, and get document elements*
 
   (20.11.2025) Error with javascript syntax, dosent allow me to press anybuttons. AT TIME Claude code version - 27v  
-  Clean and fixed version works a lot better, now allows to edit CSV or JSON file format, and save those values. Cannot access, bounding box, gives faulty *Get BOM* results using ID's.
+  (11:23pm)Clean and fixed version works a lot better, now allows to edit CSV or JSON file format, and save those values. Cannot access, bounding box, gives faulty *Get BOM* results using ID's.
