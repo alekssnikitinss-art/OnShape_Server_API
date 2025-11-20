@@ -1,19 +1,83 @@
 import os
 import base64
 import json
-from fastapi import FastAPI, Request, HTTPException
+from datetime import datetime, timedelta
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 import requests
+from sqlalchemy import create_engine, Column, String, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from cryptography.fernet import Fernet
 
 app = FastAPI()
 
+# Environment variables
 CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
+DATABASE_URL = os.getenv("DATABASE_URL")
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 
 AUTH_URL = "https://oauth.onshape.com/oauth/authorize"
 TOKEN_URL = "https://oauth.onshape.com/oauth/token"
 SCOPE = "OAuth2Read OAuth2Write"
+
+# Database setup
+Base = declarative_base()
+engine = create_engine(DATABASE_URL) if DATABASE_URL else None
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
+
+# Encryption
+cipher = Fernet(ENCRYPTION_KEY.encode()) if ENCRYPTION_KEY else None
+
+def encrypt_token(token):
+    if not cipher:
+        return token
+    return cipher.encrypt(token.encode()).decode()
+
+def decrypt_token(encrypted_token):
+    if not cipher:
+        return encrypted_token
+    return cipher.decrypt(encrypted_token.encode()).decode()
+
+# Database Models
+class User(Base):
+    __tablename__ = "users"
+    
+    user_id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    onshape_user_id = Column(String)
+    access_token = Column(Text)
+    refresh_token = Column(Text)
+    token_expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, default=datetime.utcnow)
+
+class UserDocument(Base):
+    __tablename__ = "user_documents"
+    
+    id = Column(String, primary_key=True)
+    user_id = Column(String, index=True)
+    document_id = Column(String)
+    workspace_id = Column(String)
+    element_id = Column(String)
+    document_name = Column(String)
+    last_used_at = Column(DateTime, default=datetime.utcnow)
+
+# Create tables
+if engine:
+    Base.metadata.create_all(bind=engine)
+
+# Dependency
+def get_db():
+    if not SessionLocal:
+        raise HTTPException(500, "Database not configured")
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def get_html_content():
     html = """<!DOCTYPE html>
@@ -117,6 +181,12 @@ def get_html_content():
             background: #d4edda;
             border-radius: 4px;
         }
+        .info {
+            color: #004085;
+            padding: 10px;
+            background: #cce5ff;
+            border-radius: 4px;
+        }
         pre {
             background: #2d2d2d;
             color: #f8f8f2;
@@ -157,20 +227,27 @@ def get_html_content():
         @media (max-width: 768px) {
             .grid-2 { grid-template-columns: 1fr; }
         }
+        .user-info {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 OnShape BOM & Bounding Box Manager</h1>
+        <h1>🔧 OnShape BOM Manager (with Database)</h1>
         
         <div class="section">
             <h2>Authentication</h2>
+            <div id="userInfo" class="user-info" style="display:none;">
+                <strong>Logged in as:</strong> <span id="userEmail"></span> |
+                <button onclick="logout()" style="padding: 5px 10px; font-size: 14px;">Logout</button>
+            </div>
             <div class="button-group">
                 <button id="loginBtn">🔐 Login with OnShape</button>
-            </div>
-            <div class="input-group">
-                <label for="accessToken">Access Token:</label>
-                <input type="text" id="accessToken" placeholder="Paste your access token here or login">
+                <button id="loadSavedDocsBtn">📂 Load Saved Documents</button>
             </div>
         </div>
         
@@ -195,6 +272,7 @@ def get_html_content():
                 <button id="getElemsBtn">📄 Get Elements</button>
                 <button id="getBomBtn">📊 Get BOM</button>
                 <button id="getBboxBtn">📏 Get Bounding Boxes</button>
+                <button id="saveDocBtn">💾 Save This Document</button>
             </div>
         </div>
         
@@ -205,7 +283,6 @@ def get_html_content():
                 <input type="file" id="fileUpload" accept=".csv,.json">
             </div>
             <div class="button-group">
-                <button id="saveBtn">💾 Save Edited Data</button>
                 <button id="clearBtn">🗑️ Clear All</button>
             </div>
         </div>
@@ -222,6 +299,13 @@ def get_html_content():
 
     <script>
         let currentData = null;
+        let userId = localStorage.getItem('userId');
+        
+        // Check if user is logged in
+        if (userId) {
+            document.getElementById('userInfo').style.display = 'block';
+            loadUserInfo();
+        }
         
         document.getElementById('loginBtn').addEventListener('click', function() {
             window.location.href = '/login';
@@ -231,23 +315,105 @@ def get_html_content():
         document.getElementById('getElemsBtn').addEventListener('click', getElements);
         document.getElementById('getBomBtn').addEventListener('click', getBOM);
         document.getElementById('getBboxBtn').addEventListener('click', getBoundingBoxes);
-        document.getElementById('saveBtn').addEventListener('click', saveEditedData);
+        document.getElementById('saveDocBtn').addEventListener('click', saveDocument);
+        document.getElementById('loadSavedDocsBtn').addEventListener('click', loadSavedDocuments);
         document.getElementById('clearBtn').addEventListener('click', clearData);
         document.getElementById('downloadJsonBtn').addEventListener('click', downloadAsJSON);
         document.getElementById('downloadCsvBtn').addEventListener('click', downloadAsCSV);
         document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
         
+        async function loadUserInfo() {
+            try {
+                const res = await fetch('/api/user/info?user_id=' + userId);
+                const data = await res.json();
+                document.getElementById('userEmail').textContent = data.email || 'User';
+            } catch (e) {
+                console.error('Failed to load user info');
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('userId');
+            userId = null;
+            document.getElementById('userInfo').style.display = 'none';
+            showResult('Logged out successfully', 'success');
+        }
+        
+        async function saveDocument() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid) {
+                showResult('Please fill document and workspace ID', 'error');
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/save-document', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        document_id: did,
+                        workspace_id: wid,
+                        element_id: eid
+                    })
+                });
+                if (res.ok) {
+                    showResult('✅ Document saved!', 'success');
+                } else {
+                    showResult('Failed to save document', 'error');
+                }
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function loadSavedDocuments() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/documents?user_id=' + userId);
+                const data = await res.json();
+                if (data.length === 0) {
+                    showResult('No saved documents', 'info');
+                    return;
+                }
+                let html = '<h3>Your Saved Documents</h3><table>';
+                html += '<tr><th>Document Name</th><th>Document ID</th><th>Last Used</th><th>Action</th></tr>';
+                data.forEach(function(doc) {
+                    html += '<tr><td>' + (doc.document_name || 'Unnamed') + '</td>';
+                    html += '<td>' + doc.document_id + '</td>';
+                    html += '<td>' + new Date(doc.last_used_at).toLocaleString() + '</td>';
+                    html += '<td><button onclick="loadDoc(\\''+doc.document_id+'\\',\\''+doc.workspace_id+'\\',\\''+doc.element_id+'\\')">Load</button></td></tr>';
+                });
+                html += '</table>';
+                document.getElementById('results').innerHTML = html;
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        function loadDoc(did, wid, eid) {
+            document.getElementById('documentId').value = did;
+            document.getElementById('workspaceId').value = wid || '';
+            document.getElementById('elementId').value = eid || '';
+            showResult('✅ Document loaded! Click Get BOM or Get Bounding Boxes', 'success');
+        }
+        
         async function getDocuments() {
-            const token = document.getElementById('accessToken').value;
-            if (!token) {
-                showResult('Please enter access token', 'error');
+            if (!userId) {
+                showResult('Please login first', 'error');
                 return;
             }
             showResult('Loading...', 'info');
             try {
-                const res = await fetch('/api/documents', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+                const res = await fetch('/api/documents?user_id=' + userId);
                 const data = await res.json();
                 currentData = data;
                 displayDocuments(data);
@@ -257,18 +423,19 @@ def get_html_content():
         }
         
         async function getElements() {
-            const token = document.getElementById('accessToken').value;
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
             const did = document.getElementById('documentId').value;
             const wid = document.getElementById('workspaceId').value;
-            if (!token || !did || !wid) {
-                showResult('Please fill all fields', 'error');
+            if (!did || !wid) {
+                showResult('Please fill document and workspace ID', 'error');
                 return;
             }
             showResult('Loading...', 'info');
             try {
-                const res = await fetch('/api/documents/' + did + '/w/' + wid + '/elements', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+                const res = await fetch('/api/documents/' + did + '/w/' + wid + '/elements?user_id=' + userId);
                 const data = await res.json();
                 currentData = data;
                 displayElements(data);
@@ -278,19 +445,20 @@ def get_html_content():
         }
         
         async function getBOM() {
-            const token = document.getElementById('accessToken').value;
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
             const did = document.getElementById('documentId').value;
             const wid = document.getElementById('workspaceId').value;
             const eid = document.getElementById('elementId').value;
-            if (!token || !did || !wid || !eid) {
+            if (!did || !wid || !eid) {
                 showResult('Please fill all fields', 'error');
                 return;
             }
             showResult('Loading BOM...', 'info');
             try {
-                const res = await fetch('/api/assemblies/' + did + '/w/' + wid + '/e/' + eid + '/bom', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+                const res = await fetch('/api/assemblies/' + did + '/w/' + wid + '/e/' + eid + '/bom?user_id=' + userId);
                 const data = await res.json();
                 currentData = data;
                 displayBOM(data);
@@ -300,19 +468,20 @@ def get_html_content():
         }
         
         async function getBoundingBoxes() {
-            const token = document.getElementById('accessToken').value;
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
             const did = document.getElementById('documentId').value;
             const wid = document.getElementById('workspaceId').value;
             const eid = document.getElementById('elementId').value;
-            if (!token || !did || !wid || !eid) {
+            if (!did || !wid || !eid) {
                 showResult('Please fill all fields', 'error');
                 return;
             }
             showResult('Loading...', 'info');
             try {
-                const res = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/boundingboxes', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+                const res = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/boundingboxes?user_id=' + userId);
                 const data = await res.json();
                 currentData = data;
                 displayBoundingBoxes(data);
@@ -342,15 +511,15 @@ def get_html_content():
         }
         
         function parseCSV(csv) {
-            const lines = csv.split('\\n').filter(l => l.trim());
+            const lines = csv.split('\\n').filter(function(l) { return l.trim(); });
             if (lines.length < 2) {
                 showResult('Empty CSV', 'error');
                 return;
             }
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, ''); });
             const data = [];
             for (let i = 1; i < lines.length; i++) {
-                const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                const values = lines[i].split(',').map(function(v) { return v.trim().replace(/"/g, ''); });
                 const row = {};
                 headers.forEach(function(h, idx) {
                     row[h] = values[idx] || '';
@@ -499,14 +668,6 @@ def get_html_content():
             });
         }
         
-        function saveEditedData() {
-            if (!currentData) {
-                alert('No data to save');
-                return;
-            }
-            showResult('✅ Changes saved! Download to save to file.', 'success');
-        }
-        
         function clearData() {
             if (confirm('Clear all data?')) {
                 currentData = null;
@@ -538,126 +699,4 @@ def get_html_content():
             if (currentData.bomTable && currentData.bomTable.items) {
                 csv = 'Item,Part Number,Name,Quantity,Description\\n';
                 currentData.bomTable.items.forEach(function(item) {
-                    csv += '"'+(item.item||'')+'","'+(item.partNumber||'')+'","'+(item.name||'')+'","'+(item.quantity||'')+'","'+(item.description||'')+'"\\n';
-                });
-            } else if (Array.isArray(currentData) && currentData.length > 0) {
-                const headers = Object.keys(currentData[0]);
-                csv = headers.join(',') + '\\n';
-                currentData.forEach(function(row) {
-                    csv += headers.map(function(h) { return '"'+(row[h]||'')+'"'; }).join(',') + '\\n';
-                });
-            }
-            const blob = new Blob([csv], {type: 'text/csv'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'onshape-data-' + Date.now() + '.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function showResult(msg, type) {
-            const div = document.getElementById('results');
-            div.innerHTML = '<div class="' + (type || '') + '">' + msg + '</div>';
-        }
-    </script>
-</body>
-</html>"""
-    return html
-
-if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
-    @app.get("/", response_class=HTMLResponse)
-    def missing_config():
-        return "<h1>Error: Missing environment variables</h1>"
-else:
-    @app.get("/", response_class=HTMLResponse)
-    def root():
-        return get_html_content()
-
-    @app.get("/login")
-    def login():
-        params = {
-            "response_type": "code",
-            "client_id": CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "scope": SCOPE,
-            "state": "aleks_state_123"
-        }
-        from urllib.parse import urlencode
-        url = AUTH_URL + "?" + urlencode(params)
-        return RedirectResponse(url)
-
-    @app.get("/callback", response_class=HTMLResponse)
-    async def callback(request: Request):
-        code = request.query_params.get("code")
-        error = request.query_params.get("error")
-        
-        if error:
-            return f"<h1>Error: {error}</h1><button onclick='window.location.href=\"/\"'>Back</button>"
-        
-        if not code:
-            return "<h1>Missing code</h1><button onclick='window.location.href=\"/\"'>Back</button>"
-
-        auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
-        headers = {
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI
-        }
-        
-        try:
-            resp = requests.post(TOKEN_URL, headers=headers, data=data, timeout=10)
-            if resp.status_code != 200:
-                return f"<h1>Token error</h1><pre>{resp.text}</pre>"
-
-            token_data = resp.json()
-            return f"""<html><body style='font-family: Arial; padding: 50px;'>
-                <h1 style='color: green;'>✅ Success!</h1>
-                <pre>{json.dumps(token_data, indent=2)}</pre>
-                <button onclick='window.location.href="/"' style='padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 20px;'>Back to Home</button>
-            </body></html>"""
-        except Exception as e:
-            return f"<h1>Error: {str(e)}</h1>"
-
-    @app.get("/api/documents")
-    async def get_documents(request: Request):
-        auth = request.headers.get("Authorization")
-        if not auth:
-            raise HTTPException(401, "No auth")
-        headers = {"Authorization": auth}
-        resp = requests.get("https://cad.onshape.com/api/documents", headers=headers)
-        return JSONResponse(resp.json(), resp.status_code)
-
-    @app.get("/api/documents/{did}/w/{wid}/elements")
-    async def get_elements(did: str, wid: str, request: Request):
-        auth = request.headers.get("Authorization")
-        if not auth:
-            raise HTTPException(401, "No auth")
-        headers = {"Authorization": auth}
-        url = f"https://cad.onshape.com/api/documents/d/{did}/w/{wid}/elements"
-        resp = requests.get(url, headers=headers)
-        return JSONResponse(resp.json(), resp.status_code)
-
-    @app.get("/api/assemblies/{did}/w/{wid}/e/{eid}/bom")
-    async def get_bom(did: str, wid: str, eid: str, request: Request):
-        auth = request.headers.get("Authorization")
-        if not auth:
-            raise HTTPException(401, "No auth")
-        headers = {"Authorization": auth}
-        url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom"
-        resp = requests.get(url, headers=headers)
-        return JSONResponse(resp.json(), resp.status_code)
-
-    @app.get("/api/partstudios/{did}/w/{wid}/e/{eid}/boundingboxes")
-    async def get_bounding_boxes(did: str, wid: str, eid: str, request: Request):
-        auth = request.headers.get("Authorization")
-        if not auth:
-            raise HTTPException(401, "No auth")
-        headers = {"Authorization": auth}
-        url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
-        resp = requests.get(url, headers=headers)
-        return JSONResponse(resp.json(), resp.status_code)
+                    csv += '"'+(
