@@ -7,7 +7,6 @@ import requests
 
 app = FastAPI()
 
-# Load config from environment variables
 CLIENT_ID = os.getenv("ONSHAPE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ONSHAPE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
@@ -16,9 +15,8 @@ AUTH_URL = "https://oauth.onshape.com/oauth/authorize"
 TOKEN_URL = "https://oauth.onshape.com/oauth/token"
 SCOPE = "OAuth2Read OAuth2Write"
 
-# Read the HTML file content
 def get_html_content():
-    return """<!DOCTYPE html>
+    html = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -225,8 +223,7 @@ def get_html_content():
     <script>
         let currentData = null;
         
-        // Button event listeners
-        document.getElementById('loginBtn').addEventListener('click', () => {
+        document.getElementById('loginBtn').addEventListener('click', function() {
             window.location.href = '/login';
         });
         
@@ -335,7 +332,7 @@ def get_html_content():
                         currentData = JSON.parse(content);
                         displayUploadedData(currentData);
                     } catch (err) {
-                        showResult('JSON parse error: ' + err.message, 'error');
+                        showResult('JSON parse error', 'error');
                     }
                 } else if (file.name.endsWith('.csv')) {
                     parseCSV(content);
@@ -355,7 +352,7 @@ def get_html_content():
             for (let i = 1; i < lines.length; i++) {
                 const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
                 const row = {};
-                headers.forEach((h, idx) => {
+                headers.forEach(function(h, idx) {
                     row[h] = values[idx] || '';
                 });
                 data.push(row);
@@ -389,7 +386,7 @@ def get_html_content():
                 return;
             }
             let html = '<h3>Documents</h3><table><tr><th>Name</th><th>ID</th><th>Modified</th><th>Action</th></tr>';
-            data.items.forEach(doc => {
+            data.items.forEach(function(doc) {
                 html += '<tr><td>' + (doc.name || 'Unnamed') + '</td>';
                 html += '<td>' + doc.id + '</td>';
                 html += '<td>' + new Date(doc.modifiedAt).toLocaleString() + '</td>';
@@ -405,7 +402,7 @@ def get_html_content():
                 return;
             }
             let html = '<h3>Elements</h3><table><tr><th>Name</th><th>Type</th><th>ID</th><th>Action</th></tr>';
-            data.forEach(elem => {
+            data.forEach(function(elem) {
                 html += '<tr><td>' + (elem.name || 'Unnamed') + '</td>';
                 html += '<td>' + elem.elementType + '</td>';
                 html += '<td>' + elem.id + '</td>';
@@ -422,7 +419,7 @@ def get_html_content():
             }
             let html = '<h3>BOM (Editable)</h3><table>';
             html += '<tr><th>Item</th><th>Part Number</th><th>Name</th><th>Quantity</th><th>Description</th></tr>';
-            data.bomTable.items.forEach((item, idx) => {
+            data.bomTable.items.forEach(function(item, idx) {
                 html += '<tr>';
                 html += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="item">' + (item.item || item.Item || '-') + '</td>';
                 html += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="partNumber">' + (item.partNumber || item['Part Number'] || '-') + '</td>';
@@ -443,7 +440,7 @@ def get_html_content():
             }
             let html = '<h3>Bounding Boxes (mm)</h3><table>';
             html += '<tr><th>Part ID</th><th>X (mm)</th><th>Y (mm)</th><th>Z (mm)</th><th>Volume</th></tr>';
-            data.forEach((box, idx) => {
+            data.forEach(function(box, idx) {
                 let x, y, z, vol, pid;
                 if (box['Length X (mm)']) {
                     x = box['Length X (mm)'];
@@ -473,11 +470,11 @@ def get_html_content():
         function displayGenericTable(data) {
             const headers = Object.keys(data[0]);
             let html = '<h3>Data Table</h3><table><tr>';
-            headers.forEach(h => html += '<th>'+h+'</th>');
+            headers.forEach(function(h) { html += '<th>'+h+'</th>'; });
             html += '</tr>';
-            data.forEach((row, idx) => {
+            data.forEach(function(row, idx) {
                 html += '<tr>';
-                headers.forEach(h => {
+                headers.forEach(function(h) {
                     html += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="'+h+'">'+(row[h]||'')+'</td>';
                 });
                 html += '</tr>';
@@ -488,7 +485,7 @@ def get_html_content():
         }
         
         function attachEditListeners() {
-            document.querySelectorAll('.editable-cell').forEach(cell => {
+            document.querySelectorAll('.editable-cell').forEach(function(cell) {
                 cell.addEventListener('blur', function() {
                     const row = parseInt(this.dataset.row);
                     const field = this.dataset.field;
@@ -508,9 +505,6 @@ def get_html_content():
                 return;
             }
             showResult('✅ Changes saved! Download to save to file.', 'success');
-            setTimeout(() => {
-                document.getElementById('results').style.display = 'block';
-            }, 2000);
         }
         
         function clearData() {
@@ -543,14 +537,14 @@ def get_html_content():
             let csv = '';
             if (currentData.bomTable && currentData.bomTable.items) {
                 csv = 'Item,Part Number,Name,Quantity,Description\\n';
-                currentData.bomTable.items.forEach(item => {
+                currentData.bomTable.items.forEach(function(item) {
                     csv += '"'+(item.item||'')+'","'+(item.partNumber||'')+'","'+(item.name||'')+'","'+(item.quantity||'')+'","'+(item.description||'')+'"\\n';
                 });
             } else if (Array.isArray(currentData) && currentData.length > 0) {
                 const headers = Object.keys(currentData[0]);
                 csv = headers.join(',') + '\\n';
-                currentData.forEach(row => {
-                    csv += headers.map(h => '"'+(row[h]||'')+'"').join(',') + '\\n';
+                currentData.forEach(function(row) {
+                    csv += headers.map(function(h) { return '"'+(row[h]||'')+'"'; }).join(',') + '\\n';
                 });
             }
             const blob = new Blob([csv], {type: 'text/csv'});
@@ -569,6 +563,7 @@ def get_html_content():
     </script>
 </body>
 </html>"""
+    return html
 
 if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
     @app.get("/", response_class=HTMLResponse)
@@ -665,7 +660,4 @@ else:
         headers = {"Authorization": auth}
         url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
         resp = requests.get(url, headers=headers)
-        return JSONResponse(resp.json(), resp.status_code)ests.post(TOKEN_URL, headers=headers, data=data)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"Refresh failed: {resp.text}")
-        return resp.json()
+        return JSONResponse(resp.json(), resp.status_code)
