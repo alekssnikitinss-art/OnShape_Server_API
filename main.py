@@ -397,14 +397,14 @@ HTML_CONTENT = """
             const headers = Object.keys(data[0]);
             let html = '<h3>Data Table (Editable)</h3><table>';
             html += '<tr>';
-            headers.forEach(h => html += `<th>${h}</th>`);
+            headers.forEach(h => html += '<th>' + h + '</th>');
             html += '</tr>';
             
             data.forEach((row, rowIndex) => {
                 html += '<tr>';
                 headers.forEach(header => {
                     const value = row[header] || '';
-                    html += `<td class="editable-cell" contenteditable="true" data-row="${rowIndex}" data-field="${header}">${value}</td>`;
+                    html += '<td class="editable-cell" contenteditable="true" data-row="' + rowIndex + '" data-field="' + header + '">' + value + '</td>';
                 });
                 html += '</tr>';
             });
@@ -450,6 +450,7 @@ HTML_CONTENT = """
         }
         
         async function getElements() {
+            console.log('Getting elements');
             const accessToken = document.getElementById('accessToken').value;
             const documentId = document.getElementById('documentId').value;
             const workspaceId = document.getElementById('workspaceId').value;
@@ -461,20 +462,28 @@ HTML_CONTENT = """
             
             showResult('Loading elements...', 'info');
             try {
-                const response = await fetch(`/api/documents/${documentId}/w/${workspaceId}/elements`, {
+                const response = await fetch('/api/documents/' + documentId + '/w/' + workspaceId + '/elements', {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': 'Bearer ' + accessToken
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                
                 const data = await response.json();
+                console.log('Elements received:', data);
                 currentData = data;
                 displayElements(data);
             } catch (error) {
-                showResult(`Error: ${error.message}`, 'error');
+                console.error('Error fetching elements:', error);
+                showResult('Error: ' + error.message, 'error');
             }
         }
         
         async function getBOM() {
+            console.log('Getting BOM');
             const accessToken = document.getElementById('accessToken').value;
             const documentId = document.getElementById('documentId').value;
             const workspaceId = document.getElementById('workspaceId').value;
@@ -487,20 +496,28 @@ HTML_CONTENT = """
             
             showResult('Loading BOM...', 'info');
             try {
-                const response = await fetch(`/api/assemblies/${documentId}/w/${workspaceId}/e/${elementId}/bom`, {
+                const response = await fetch('/api/assemblies/' + documentId + '/w/' + workspaceId + '/e/' + elementId + '/bom', {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': 'Bearer ' + accessToken
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                
                 const data = await response.json();
+                console.log('BOM received:', data);
                 currentData = data;
                 displayBOM(data);
             } catch (error) {
-                showResult(`Error: ${error.message}`, 'error');
+                console.error('Error fetching BOM:', error);
+                showResult('Error: ' + error.message, 'error');
             }
         }
         
         async function getBoundingBoxes() {
+            console.log('Getting bounding boxes');
             const accessToken = document.getElementById('accessToken').value;
             const documentId = document.getElementById('documentId').value;
             const workspaceId = document.getElementById('workspaceId').value;
@@ -513,16 +530,23 @@ HTML_CONTENT = """
             
             showResult('Loading bounding boxes...', 'info');
             try {
-                const response = await fetch(`/api/partstudios/${documentId}/w/${workspaceId}/e/${elementId}/boundingboxes`, {
+                const response = await fetch('/api/partstudios/' + documentId + '/w/' + workspaceId + '/e/' + elementId + '/boundingboxes', {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': 'Bearer ' + accessToken
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                
                 const data = await response.json();
+                console.log('Bounding boxes received:', data);
                 currentData = data;
                 displayBoundingBoxes(data);
             } catch (error) {
-                showResult(`Error: ${error.message}`, 'error');
+                console.error('Error fetching bounding boxes:', error);
+                showResult('Error: ' + error.message, 'error');
             }
         }
         
@@ -534,12 +558,7 @@ HTML_CONTENT = """
             
             let html = '<h3>Your Documents</h3><table><tr><th>Name</th><th>ID</th><th>Modified</th><th>Action</th></tr>';
             data.items.forEach(doc => {
-                html += `<tr>
-                    <td>${doc.name || 'Unnamed'}</td>
-                    <td>${doc.id}</td>
-                    <td>${new Date(doc.modifiedAt).toLocaleString()}</td>
-                    <td><button onclick="document.getElementById('documentId').value='${doc.id}'">Use This</button></td>
-                </tr>`;
+                html += '<tr><td>' + (doc.name || 'Unnamed') + '</td><td>' + doc.id + '</td><td>' + new Date(doc.modifiedAt).toLocaleString() + '</td><td><button onclick="document.getElementById(\'documentId\').value=\'' + doc.id + '\'">Use This</button></td></tr>';
             });
             html += '</table>';
             document.getElementById('results').innerHTML = html;
@@ -553,12 +572,7 @@ HTML_CONTENT = """
             
             let html = '<h3>Document Elements</h3><table><tr><th>Name</th><th>Type</th><th>ID</th><th>Action</th></tr>';
             data.forEach(elem => {
-                html += `<tr>
-                    <td>${elem.name || 'Unnamed'}</td>
-                    <td>${elem.elementType}</td>
-                    <td>${elem.id}</td>
-                    <td><button onclick="document.getElementById('elementId').value='${elem.id}'">Use This</button></td>
-                </tr>`;
+                html += '<tr><td>' + (elem.name || 'Unnamed') + '</td><td>' + elem.elementType + '</td><td>' + elem.id + '</td><td><button onclick="document.getElementById(\'elementId\').value=\'' + elem.id + '\'">Use This</button></td></tr>';
             });
             html += '</table>';
             document.getElementById('results').innerHTML = html;
@@ -574,13 +588,13 @@ HTML_CONTENT = """
             html += '<tr><th>Item</th><th>Part Number</th><th>Name</th><th>Quantity</th><th>Description</th></tr>';
             
             data.bomTable.items.forEach((item, index) => {
-                html += `<tr>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="item">${item.item || item.Item || '-'}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="partNumber">${item.partNumber || item['Part Number'] || '-'}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="name">${item.name || item.Name || '-'}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="quantity">${item.quantity || item.Quantity || '-'}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="description">${item.description || item.Description || '-'}</td>
-                </tr>`;
+                html += '<tr>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="item">' + (item.item || item.Item || '-') + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="partNumber">' + (item.partNumber || item['Part Number'] || '-') + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="name">' + (item.name || item.Name || '-') + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="quantity">' + (item.quantity || item.Quantity || '-') + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="description">' + (item.description || item.Description || '-') + '</td>';
+                html += '</tr>';
             });
             html += '</table>';
             html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Changes are saved automatically.</p>';
@@ -598,18 +612,15 @@ HTML_CONTENT = """
             html += '<tr><th>Part ID</th><th>Length X (mm)</th><th>Length Y (mm)</th><th>Length Z (mm)</th><th>Volume (mm³)</th></tr>';
             
             data.forEach((box, index) => {
-                // Handle both raw API data and uploaded CSV data
                 let lengthX, lengthY, lengthZ, volume, partId;
                 
                 if (box['Length X (mm)']) {
-                    // CSV format
                     lengthX = box['Length X (mm)'];
                     lengthY = box['Length Y (mm)'];
                     lengthZ = box['Length Z (mm)'];
                     volume = box['Volume (mm³)'];
                     partId = box['Part ID'] || 'Unknown';
                 } else {
-                    // API format - convert from meters to millimeters
                     lengthX = ((box.highX - box.lowX) * 1000).toFixed(2);
                     lengthY = ((box.highY - box.lowY) * 1000).toFixed(2);
                     lengthZ = ((box.highZ - box.lowZ) * 1000).toFixed(2);
@@ -617,13 +628,13 @@ HTML_CONTENT = """
                     partId = box.partId || 'Unknown';
                 }
                 
-                html += `<tr>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="partId">${partId}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthX">${lengthX}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthY">${lengthY}</td>
-                    <td class="editable-cell" contenteditable="true" data-row="${index}" data-field="lengthZ">${lengthZ}</td>
-                    <td>${volume}</td>
-                </tr>`;
+                html += '<tr>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="partId">' + partId + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="lengthX">' + lengthX + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="lengthY">' + lengthY + '</td>';
+                html += '<td class="editable-cell" contenteditable="true" data-row="' + index + '" data-field="lengthZ">' + lengthZ + '</td>';
+                html += '<td>' + volume + '</td>';
+                html += '</tr>';
             });
             html += '</table>';
             html += '<p style="color: #666; margin-top: 10px;">💡 Click on any cell to edit. Volume is auto-calculated.</p>';
