@@ -433,7 +433,7 @@ else:
     @app.get("/api/assemblies/{did}/w/{wid}/e/{eid}/bom")
     async def get_bom(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
         token = get_user_token(user_id, db)
-        url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom"
+        url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom?bomColumnIds=ITEM_NUMBER,PART_NUMBER,QUANTITY,DESCRIPTION,NAME&indented=false"
         resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
         return JSONResponse(resp.json(), resp.status_code)
 
