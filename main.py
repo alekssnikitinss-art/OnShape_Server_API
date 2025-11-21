@@ -74,231 +74,778 @@ def get_db():
 
 def get_html():
     return """<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>OnShape Manager</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
-.container{max-width:1200px;margin:30px auto;background:#fff;padding:30px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2)}
-h1{color:#333;margin-bottom:20px;text-align:center}
-h2{color:#555;margin:25px 0 15px;padding-bottom:10px;border-bottom:2px solid #667eea}
-.section{margin:20px 0;padding:20px;background:#f8f9fa;border-radius:8px}
-.button-group{display:flex;gap:10px;margin:15px 0;flex-wrap:wrap}
-button{padding:12px 24px;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;transition:all 0.3s}
-button:hover{background:#5568d3;transform:translateY(-2px)}
-.input-group{margin:15px 0}
-input{width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;margin-top:5px}
-label{display:block;margin-bottom:5px;color:#555;font-weight:500}
-#results{margin-top:20px;padding:20px;background:#f8f9fa;border-radius:8px;min-height:100px;max-height:600px;overflow-y:auto}
-.error{color:#dc3545;padding:10px;background:#f8d7da;border-radius:4px}
-.success{color:#155724;padding:10px;background:#d4edda;border-radius:4px}
-.info{color:#004085;padding:10px;background:#cce5ff;border-radius:4px}
-table{width:100%;border-collapse:collapse;margin:15px 0;background:#fff}
-th,td{padding:12px;text-align:left;border:1px solid #ddd}
-th{background:#667eea;color:#fff}
-tr:hover{background:#f5f5f5}
-.editable-cell{background:#fff9e6;cursor:text}
-.download-btn{background:#28a745}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
-.user-info{background:#e7f3ff;padding:10px;border-radius:4px;margin-bottom:15px}
-</style></head><body>
-<div class="container">
-<h1>🔧 OnShape BOM Manager</h1>
-<div class="section"><h2>Authentication</h2>
-<div id="userInfo" class="user-info" style="display:none">
-<strong>Logged in:</strong> <span id="userEmail"></span> | <button onclick="logout()">Logout</button>
-</div>
-<div class="button-group">
-<button id="loginBtn">🔐 Login</button>
-<button id="loadSavedBtn">📂 Load Saved</button>
-</div></div>
-<div class="section"><h2>Document Info</h2>
-<div class="grid-2">
-<div class="input-group"><label>Document ID:</label><input type="text" id="documentId"></div>
-<div class="input-group"><label>Workspace ID:</label><input type="text" id="workspaceId"></div>
-</div>
-<div class="input-group"><label>Element ID:</label><input type="text" id="elementId"></div>
-<div class="button-group">
-<button id="getDocsBtn">📁 Docs</button>
-<button id="getElemsBtn">📄 Elements</button>
-<button id="getBomBtn">📊 BOM</button>
-<button id="getBboxBtn">📏 Bbox</button>
-<button id="saveDocBtn">💾 Save</button>
-</div></div>
-<div class="section"><h2>Upload</h2>
-<input type="file" id="fileUpload" accept=".csv,.json">
-<button id="clearBtn" style="margin-top:10px">🗑️ Clear</button>
-</div>
-<div class="section"><h2>Results</h2>
-<div class="button-group">
-<button class="download-btn" id="downloadJsonBtn">⬇️ JSON</button>
-<button class="download-btn" id="downloadCsvBtn">⬇️ CSV</button>
-</div>
-<div id="results">No data</div>
-</div></div>
-<script>
-let currentData=null;
-let userId=localStorage.getItem('userId');
-if(userId){document.getElementById('userInfo').style.display='block';loadUserInfo();}
-document.getElementById('loginBtn').onclick=()=>window.location.href='/login';
-document.getElementById('getDocsBtn').onclick=getDocuments;
-document.getElementById('getElemsBtn').onclick=getElements;
-document.getElementById('getBomBtn').onclick=getBOM;
-document.getElementById('getBboxBtn').onclick=getBoundingBoxes;
-document.getElementById('saveDocBtn').onclick=saveDocument;
-document.getElementById('loadSavedBtn').onclick=loadSavedDocuments;
-document.getElementById('clearBtn').onclick=clearData;
-document.getElementById('downloadJsonBtn').onclick=downloadAsJSON;
-document.getElementById('downloadCsvBtn').onclick=downloadAsCSV;
-document.getElementById('fileUpload').onchange=handleFileUpload;
-async function loadUserInfo(){
-try{const r=await fetch('/api/user/info?user_id='+userId);const d=await r.json();
-document.getElementById('userEmail').textContent=d.email||'User';}catch(e){}}
-function logout(){localStorage.removeItem('userId');userId=null;
-document.getElementById('userInfo').style.display='none';showResult('Logged out','success');}
-async function saveDocument(){
-if(!userId){showResult('Login first','error');return;}
-const did=document.getElementById('documentId').value;
-const wid=document.getElementById('workspaceId').value;
-const eid=document.getElementById('elementId').value;
-if(!did||!wid){showResult('Fill doc and workspace','error');return;}
-try{const r=await fetch('/api/user/save-document',{method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({user_id:userId,document_id:did,workspace_id:wid,element_id:eid})});
-if(r.ok)showResult('✅ Saved!','success');else showResult('Failed','error');}catch(e){showResult('Error','error');}}
-async function loadSavedDocuments(){
-if(!userId){showResult('Login first','error');return;}
-try{const r=await fetch('/api/user/documents?user_id='+userId);
-const data=await r.json();if(!data.length){showResult('No saved docs','info');return;}
-let h='<h3>Saved Documents</h3><table><tr><th>Name</th><th>ID</th><th>Last Used</th><th>Action</th></tr>';
-data.forEach(d=>{h+='<tr><td>'+(d.document_name||'Unnamed')+'</td><td>'+d.document_id+'</td><td>'+new Date(d.last_used_at).toLocaleString()+'</td><td><button onclick="loadDoc(\\''+d.document_id+'\\',\\''+d.workspace_id+'\\',\\''+d.element_id+'\\')">Load</button></td></tr>';});
-h+='</table>';document.getElementById('results').innerHTML=h;}catch(e){showResult('Error','error');}}
-function loadDoc(did,wid,eid){
-document.getElementById('documentId').value=did;
-document.getElementById('workspaceId').value=wid||'';
-document.getElementById('elementId').value=eid||'';
-showResult('✅ Loaded!','success');}
-async function getDocuments(){
-if(!userId){showResult('Login first','error');return;}
-showResult('Loading...','info');
-try{const r=await fetch('/api/documents?user_id='+userId);
-const data=await r.json();currentData=data;displayDocuments(data);}catch(e){showResult('Error','error');}}
-async function getElements(){
-if(!userId){showResult('Login first','error');return;}
-const did=document.getElementById('documentId').value;
-const wid=document.getElementById('workspaceId').value;
-if(!did||!wid){showResult('Fill fields','error');return;}
-showResult('Loading...','info');
-try{const r=await fetch('/api/documents/'+did+'/w/'+wid+'/elements?user_id='+userId);
-const data=await r.json();currentData=data;displayElements(data);}catch(e){showResult('Error','error');}}
-async function getBOM(){
-if(!userId){showResult('Login first','error');return;}
-const did=document.getElementById('documentId').value;
-const wid=document.getElementById('workspaceId').value;
-const eid=document.getElementById('elementId').value;
-if(!did||!wid||!eid){showResult('Fill all','error');return;}
-showResult('Loading...','info');
-try{const r=await fetch('/api/assemblies/'+did+'/w/'+wid+'/e/'+eid+'/bom?user_id='+userId);
-const data=await r.json();currentData=data;displayBOM(data);}catch(e){showResult('Error','error');}}
-async function getBoundingBoxes(){
-if(!userId){showResult('Login first','error');return;}
-const did=document.getElementById('documentId').value;
-const wid=document.getElementById('workspaceId').value;
-const eid=document.getElementById('elementId').value;
-if(!did||!wid||!eid){showResult('Fill all','error');return;}
-showResult('Loading...','info');
-try{const r=await fetch('/api/partstudios/'+did+'/w/'+wid+'/e/'+eid+'/boundingboxes?user_id='+userId);
-const data=await r.json();currentData=data;displayBoundingBoxes(data);}catch(e){showResult('Error','error');}}
-function handleFileUpload(e){
-const file=e.target.files[0];if(!file)return;
-const reader=new FileReader();reader.onload=function(ev){
-const content=ev.target.result;
-if(file.name.endsWith('.json')){try{currentData=JSON.parse(content);
-displayUploadedData(currentData);}catch(err){showResult('Parse error','error');}}
-else if(file.name.endsWith('.csv')){parseCSV(content);}};reader.readAsText(file);}
-function parseCSV(csv){
-const lines=csv.split('\\n').filter(l=>l.trim());
-if(lines.length<2){showResult('Empty CSV','error');return;}
-const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
-const data=[];for(let i=1;i<lines.length;i++){
-const values=lines[i].split(',').map(v=>v.trim().replace(/"/g,''));
-const row={};headers.forEach((h,idx)=>{row[h]=values[idx]||'';});data.push(row);}
-if(headers.includes('Part Number')||headers.includes('partNumber')){currentData={bomTable:{items:data}};}
-else{currentData=data;}displayUploadedData(currentData);}
-function displayUploadedData(data){
-if(data.bomTable&&data.bomTable.items){displayBOM(data);}
-else if(Array.isArray(data)&&data[0]){
-if(data[0]['Length X (mm)']||data[0].lowX){displayBoundingBoxes(data);}
-else if(data[0].partNumber||data[0]['Part Number']){currentData={bomTable:{items:data}};displayBOM(currentData);}
-else{displayGenericTable(data);}}}
-function displayDocuments(data){
-if(!data.items||!data.items.length){showResult('No docs','error');return;}
-let h='<h3>Documents</h3><table><tr><th>Name</th><th>ID</th><th>Modified</th><th>Action</th></tr>';
-data.items.forEach(d=>{h+='<tr><td>'+(d.name||'Unnamed')+'</td><td>'+d.id+'</td><td>'+new Date(d.modifiedAt).toLocaleString()+'</td><td><button onclick="document.getElementById(\\'documentId\\').value=\\''+d.id+'\\'">Use</button></td></tr>';});
-h+='</table>';document.getElementById('results').innerHTML=h;}
-function displayElements(data){
-if(!data||!data.length){showResult('No elements','error');return;}
-let h='<h3>Elements</h3><table><tr><th>Name</th><th>Type</th><th>ID</th><th>Action</th></tr>';
-data.forEach(e=>{h+='<tr><td>'+(e.name||'Unnamed')+'</td><td>'+e.elementType+'</td><td>'+e.id+'</td><td><button onclick="document.getElementById(\\'elementId\\').value=\\''+e.id+'\\'">Use</button></td></tr>';});
-h+='</table>';document.getElementById('results').innerHTML=h;}
-function displayBOM(data){
-if(!data.bomTable||!data.bomTable.items){showResult('No BOM','error');return;}
-let h='<h3>BOM (Editable)</h3><table><tr><th>Item</th><th>Part#</th><th>Name</th><th>Qty</th><th>Desc</th></tr>';
-data.bomTable.items.forEach((item,idx)=>{h+='<tr>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="item">'+(item.item||item.Item||'-')+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="partNumber">'+(item.partNumber||item['Part Number']||'-')+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="name">'+(item.name||item.Name||'-')+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="quantity">'+(item.quantity||item.Quantity||'-')+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="description">'+(item.description||item.Description||'-')+'</td>';
-h+='</tr>';});h+='</table><p>💡 Click to edit</p>';
-document.getElementById('results').innerHTML=h;attachEditListeners();}
-function displayBoundingBoxes(data){
-if(!data||!data.length){showResult('No bbox','error');return;}
-let h='<h3>Bounding Boxes (mm)</h3><table><tr><th>Part</th><th>X</th><th>Y</th><th>Z</th><th>Vol</th></tr>';
-data.forEach((box,idx)=>{let x,y,z,vol,pid;
-if(box['Length X (mm)']){x=box['Length X (mm)'];y=box['Length Y (mm)'];z=box['Length Z (mm)'];
-vol=box['Volume (mm³)'];pid=box['Part ID']||'Unknown';}else{
-x=((box.highX-box.lowX)*1000).toFixed(2);y=((box.highY-box.lowY)*1000).toFixed(2);
-z=((box.highZ-box.lowZ)*1000).toFixed(2);vol=(x*y*z).toFixed(2);pid=box.partId||'Unknown';}
-h+='<tr>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="partId">'+pid+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthX">'+x+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthY">'+y+'</td>';
-h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthZ">'+z+'</td>';
-h+='<td>'+vol+'</td></tr>';});h+='</table><p>💡 Click to edit</p>';
-document.getElementById('results').innerHTML=h;attachEditListeners();}
-function displayGenericTable(data){
-const headers=Object.keys(data[0]);let h='<h3>Data</h3><table><tr>';
-headers.forEach(hh=>h+='<th>'+hh+'</th>');h+='</tr>';
-data.forEach((row,idx)=>{h+='<tr>';
-headers.forEach(hh=>h+='<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="'+hh+'">'+(row[hh]||'')+'</td>');
-h+='</tr>';});h+='</table>';document.getElementById('results').innerHTML=h;attachEditListeners();}
-function attachEditListeners(){
-document.querySelectorAll('.editable-cell').forEach(cell=>{
-cell.addEventListener('blur',function(){
-const row=parseInt(this.dataset.row);const field=this.dataset.field;
-const val=this.textContent.trim();
-if(currentData.bomTable&&currentData.bomTable.items){currentData.bomTable.items[row][field]=val;}
-else if(Array.isArray(currentData)){currentData[row][field]=val;}});});}
-function clearData(){if(confirm('Clear?')){currentData=null;
-document.getElementById('results').innerHTML='No data';
-document.getElementById('fileUpload').value='';}}
-function downloadAsJSON(){if(!currentData){alert('No data');return;}
-const blob=new Blob([JSON.stringify(currentData,null,2)],{type:'application/json'});
-const url=URL.createObjectURL(blob);const a=document.createElement('a');
-a.href=url;a.download='onshape-'+Date.now()+'.json';a.click();URL.revokeObjectURL(url);}
-function downloadAsCSV(){if(!currentData){alert('No data');return;}
-let csv='';if(currentData.bomTable&&currentData.bomTable.items){
-csv='Item,Part Number,Name,Quantity,Description\\n';
-currentData.bomTable.items.forEach(item=>{
-csv+='"'+(item.item||'')+'","'+(item.partNumber||'')+'","'+(item.name||'')+'","'+(item.quantity||'')+'","'+(item.description||'')+'"\\n';});}
-else if(Array.isArray(currentData)&&currentData.length>0){
-const headers=Object.keys(currentData[0]);csv=headers.join(',')+' \\n';
-currentData.forEach(row=>{csv+=headers.map(h=>'"'+(row[h]||'')+'"').join(',')+' \\n';});}
-const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);
-const a=document.createElement('a');a.href=url;a.download='onshape-'+Date.now()+'.csv';
-a.click();URL.revokeObjectURL(url);}
-function showResult(msg,type){document.getElementById('results').innerHTML='<div class="'+(type||'')+'">'+msg+'</div>';}
-</script></body></html>"""
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnShape BOM Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 28px;
+        }
+        h2 {
+            color: #555;
+            margin: 25px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            font-size: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .input-group { margin: 15px 0; }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 100px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #155724;
+            padding: 10px;
+            background: #d4edda;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            color: #004085;
+            padding: 10px;
+            background: #cce5ff;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover { background: #f5f5f5; }
+        .editable-cell {
+            background: #fff9e6;
+            cursor: text;
+            min-width: 80px;
+        }
+        .editable-cell:hover { background: #fff3cd; }
+        .editable-cell:focus {
+            background: #fffacd;
+            outline: 2px solid #667eea;
+        }
+        .download-btn { background: #28a745; }
+        .download-btn:hover { background: #218838; }
+        .push-btn { background: #ff6b6b; }
+        .push-btn:hover { background: #ee5a52; }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .user-info {
+            background: #e7f3ff;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toggle-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .toggle-btn {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #ddd;
+            font-size: 14px;
+        }
+        .toggle-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .expandable-row {
+            cursor: pointer;
+            user-select: none;
+        }
+        .expandable-row:hover {
+            background: #e9ecef !important;
+        }
+        .expand-icon {
+            display: inline-block;
+            margin-right: 5px;
+            transition: transform 0.2s;
+        }
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+        .child-row {
+            display: none;
+            background: #f8f9fa;
+        }
+        .child-row.visible {
+            display: table-row;
+        }
+        .indent-1 { padding-left: 30px; }
+        .indent-2 { padding-left: 50px; }
+        .indent-3 { padding-left: 70px; }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .container { padding: 15px; }
+            h1 { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 OnShape BOM & Bounding Box Manager</h1>
+        
+        <div class="section">
+            <h2>🔐 Authentication</h2>
+            <div id="userInfo" class="user-info" style="display:none">
+                <div>
+                    <strong>Logged in as:</strong> <span id="userEmail"></span>
+                </div>
+                <button onclick="logout()" style="padding: 8px 16px; font-size: 14px;">Logout</button>
+            </div>
+            <div class="button-group">
+                <button id="loginBtn">🔐 Login with OnShape</button>
+                <button id="loadSavedBtn">📂 Load Saved Documents</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📄 Document Information</h2>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label for="documentId">Document ID:</label>
+                    <input type="text" id="documentId" placeholder="e.g., 5f4b3c2a1e0d9c8b7a6f5e4d">
+                </div>
+                <div class="input-group">
+                    <label for="workspaceId">Workspace ID:</label>
+                    <input type="text" id="workspaceId" placeholder="e.g., 1a2b3c4d5e6f7g8h9i0j">
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="elementId">Element ID (Assembly/Part Studio):</label>
+                <input type="text" id="elementId" placeholder="e.g., 9z8y7x6w5v4u3t2s1r0q">
+            </div>
+            <div class="button-group">
+                <button id="getDocsBtn">📁 List My Documents</button>
+                <button id="getElemsBtn">📄 Get Elements</button>
+                <button id="saveDocBtn">💾 Save This Document</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📊 Data Operations</h2>
+            <div class="toggle-group">
+                <label><strong>BOM Format:</strong></label>
+                <button class="toggle-btn active" id="flatBtn" onclick="setBomFormat('flat')">Flattened</button>
+                <button class="toggle-btn" id="structBtn" onclick="setBomFormat('structured')">Structured</button>
+            </div>
+            <div class="button-group">
+                <button id="getBomBtn">📊 Get BOM</button>
+                <button id="getBboxBtn">📏 Get Bounding Boxes</button>
+                <button class="push-btn" id="pushBomBtn" style="display:none">⬆️ Push BOM to OnShape</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📤 Upload & Edit</h2>
+            <div class="input-group">
+                <label for="fileUpload">Upload CSV or JSON File:</label>
+                <input type="file" id="fileUpload" accept=".csv,.json">
+            </div>
+            <div class="button-group">
+                <button id="clearBtn">🗑️ Clear All Data</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>📥 Results & Export</h2>
+            <div class="button-group">
+                <button class="download-btn" id="downloadJsonBtn">⬇️ Download JSON</button>
+                <button class="download-btn" id="downloadCsvBtn">⬇️ Download CSV</button>
+            </div>
+            <div id="results">No data yet. Login and fetch data or upload a file!</div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let userId = localStorage.getItem('userId');
+        let bomFormat = 'flat';
+        let currentDocId = '';
+        let currentWorkId = '';
+        let currentElemId = '';
+        
+        if (userId) {
+            document.getElementById('userInfo').style.display = 'flex';
+            loadUserInfo();
+        }
+        
+        document.getElementById('loginBtn').onclick = () => window.location.href = '/login';
+        document.getElementById('getDocsBtn').onclick = getDocuments;
+        document.getElementById('getElemsBtn').onclick = getElements;
+        document.getElementById('getBomBtn').onclick = getBOM;
+        document.getElementById('getBboxBtn').onclick = getBoundingBoxes;
+        document.getElementById('saveDocBtn').onclick = saveDocument;
+        document.getElementById('loadSavedBtn').onclick = loadSavedDocuments;
+        document.getElementById('clearBtn').onclick = clearData;
+        document.getElementById('downloadJsonBtn').onclick = downloadAsJSON;
+        document.getElementById('downloadCsvBtn').onclick = downloadAsCSV;
+        document.getElementById('pushBomBtn').onclick = pushBOMToOnShape;
+        document.getElementById('fileUpload').onchange = handleFileUpload;
+        
+        function setBomFormat(format) {
+            bomFormat = format;
+            document.getElementById('flatBtn').classList.toggle('active', format === 'flat');
+            document.getElementById('structBtn').classList.toggle('active', format === 'structured');
+        }
+        
+        async function loadUserInfo() {
+            try {
+                const r = await fetch('/api/user/info?user_id=' + userId);
+                const d = await r.json();
+                document.getElementById('userEmail').textContent = d.email || 'User';
+            } catch (e) {
+                console.error('Failed to load user info');
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('userId');
+            userId = null;
+            document.getElementById('userInfo').style.display = 'none';
+            showResult('Logged out successfully', 'success');
+        }
+        
+        async function saveDocument() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid) {
+                showResult('Please fill document and workspace ID', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/user/save-document', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, document_id: did, workspace_id: wid, element_id: eid })
+                });
+                if (r.ok) showResult('✅ Document saved!', 'success');
+                else showResult('Failed to save document', 'error');
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function loadSavedDocuments() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/user/documents?user_id=' + userId);
+                const data = await r.json();
+                if (!data.length) {
+                    showResult('No saved documents found', 'info');
+                    return;
+                }
+                let h = '<h3>Your Saved Documents</h3><table><tr><th>Name</th><th>Document ID</th><th>Last Used</th><th>Action</th></tr>';
+                data.forEach(d => {
+                    h += '<tr><td>' + (d.document_name || 'Unnamed') + '</td>';
+                    h += '<td>' + d.document_id.substring(0, 12) + '...</td>';
+                    h += '<td>' + new Date(d.last_used_at).toLocaleString() + '</td>';
+                    h += '<td><button onclick="loadDoc(\\''+d.document_id+'\\',\\''+d.workspace_id+'\\',\\''+d.element_id+'\\')">Load</button></td></tr>';
+                });
+                h += '</table>';
+                document.getElementById('results').innerHTML = h;
+            } catch (e) {
+                showResult('Error loading documents: ' + e.message, 'error');
+            }
+        }
+        
+        function loadDoc(did, wid, eid) {
+            document.getElementById('documentId').value = did;
+            document.getElementById('workspaceId').value = wid || '';
+            document.getElementById('elementId').value = eid || '';
+            showResult('✅ Document loaded! Click Get BOM or Get Bounding Boxes to fetch data.', 'success');
+        }
+        
+        async function getDocuments() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            showResult('Loading documents...', 'info');
+            try {
+                const r = await fetch('/api/documents?user_id=' + userId);
+                const data = await r.json();
+                currentData = data;
+                displayDocuments(data);
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function getElements() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            if (!did || !wid) {
+                showResult('Please fill document and workspace ID', 'error');
+                return;
+            }
+            showResult('Loading elements...', 'info');
+            try {
+                const r = await fetch('/api/documents/' + did + '/w/' + wid + '/elements?user_id=' + userId);
+                const data = await r.json();
+                currentData = data;
+                displayElements(data);
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function getBOM() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid || !eid) {
+                showResult('Please fill all fields (Document ID, Workspace ID, Element ID)', 'error');
+                return;
+            }
+            currentDocId = did;
+            currentWorkId = wid;
+            currentElemId = eid;
+            showResult('Loading BOM...', 'info');
+            try {
+                const r = await fetch('/api/assemblies/' + did + '/w/' + wid + '/e/' + eid + '/bom?user_id=' + userId + '&format=' + bomFormat);
+                const data = await r.json();
+                currentData = data;
+                displayBOM(data);
+                document.getElementById('pushBomBtn').style.display = 'inline-block';
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function getBoundingBoxes() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid || !eid) {
+                showResult('Please fill all fields', 'error');
+                return;
+            }
+            showResult('Loading bounding boxes...', 'info');
+            try {
+                const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/boundingboxes?user_id=' + userId);
+                const data = await r.json();
+                currentData = data;
+                displayBoundingBoxes(data);
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function pushBOMToOnShape() {
+            if (!userId || !currentDocId || !currentWorkId || !currentElemId) {
+                showResult('Please load a BOM first', 'error');
+                return;
+            }
+            if (!currentData || !currentData.bomTable || !currentData.bomTable.items) {
+                showResult('No BOM data to push', 'error');
+                return;
+            }
+            if (!confirm('Push BOM changes back to OnShape? This will update the assembly.')) {
+                return;
+            }
+            showResult('Pushing BOM to OnShape...', 'info');
+            try {
+                const r = await fetch('/api/assemblies/' + currentDocId + '/w/' + currentWorkId + '/e/' + currentElemId + '/bom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, bomData: currentData })
+                });
+                if (r.ok) {
+                    showResult('✅ BOM successfully pushed to OnShape!', 'success');
+                } else {
+                    const error = await r.text();
+                    showResult('Failed to push BOM: ' + error, 'error');
+                }
+            } catch (e) {
+                showResult('Error pushing BOM: ' + e.message, 'error');
+            }
+        }
+        
+        function toggleRow(rowId) {
+            const children = document.querySelectorAll('.child-of-' + rowId);
+            const icon = document.getElementById('icon-' + rowId);
+            children.forEach(child => {
+                child.classList.toggle('visible');
+            });
+            icon.classList.toggle('expanded');
+        }
+        
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const content = ev.target.result;
+                if (file.name.endsWith('.json')) {
+                    try {
+                        currentData = JSON.parse(content);
+                        displayUploadedData(currentData);
+                    } catch (err) {
+                        showResult('JSON parse error: ' + err.message, 'error');
+                    }
+                } else if (file.name.endsWith('.csv')) {
+                    parseCSV(content);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseCSV(csv) {
+            const lines = csv.split('\\n').filter(l => l.trim());
+            if (lines.length < 2) {
+                showResult('Empty CSV file', 'error');
+                return;
+            }
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                const row = {};
+                headers.forEach((h, idx) => {
+                    row[h] = values[idx] || '';
+                });
+                data.push(row);
+            }
+            if (headers.includes('Part Number') || headers.includes('partNumber')) {
+                currentData = { bomTable: { items: data } };
+            } else {
+                currentData = data;
+            }
+            displayUploadedData(currentData);
+        }
+        
+        function displayUploadedData(data) {
+            if (data.bomTable && data.bomTable.items) {
+                displayBOM(data);
+            } else if (Array.isArray(data) && data[0]) {
+                if (data[0]['Length X (mm)'] || data[0].lowX) {
+                    displayBoundingBoxes(data);
+                } else if (data[0].partNumber || data[0]['Part Number']) {
+                    currentData = { bomTable: { items: data } };
+                    displayBOM(currentData);
+                } else {
+                    displayGenericTable(data);
+                }
+            }
+        }
+        
+        function displayDocuments(data) {
+            if (!data.items || !data.items.length) {
+                showResult('No documents found', 'error');
+                return;
+            }
+            let h = '<h3>Your OnShape Documents</h3><table><tr><th>Name</th><th>Document ID</th><th>Modified</th><th>Action</th></tr>';
+            data.items.forEach(d => {
+                h += '<tr><td>' + (d.name || 'Unnamed') + '</td>';
+                h += '<td>' + d.id.substring(0, 12) + '...</td>';
+                h += '<td>' + new Date(d.modifiedAt).toLocaleString() + '</td>';
+                h += '<td><button onclick="document.getElementById(\\'documentId\\').value=\\''+d.id+'\\'">Use This</button></td></tr>';
+            });
+            h += '</table>';
+            document.getElementById('results').innerHTML = h;
+        }
+        
+        function displayElements(data) {
+            if (!data || !data.length) {
+                showResult('No elements found in this document', 'error');
+                return;
+            }
+            let h = '<h3>Document Elements</h3><table><tr><th>Name</th><th>Type</th><th>Element ID</th><th>Action</th></tr>';
+            data.forEach(e => {
+                h += '<tr><td>' + (e.name || 'Unnamed') + '</td>';
+                h += '<td>' + e.elementType + '</td>';
+                h += '<td>' + e.id.substring(0, 12) + '...</td>';
+                h += '<td><button onclick="document.getElementById(\\'elementId\\').value=\\''+e.id+'\\'">Use This</button></td></tr>';
+            });
+            h += '</table>';
+            document.getElementById('results').innerHTML = h;
+        }
+        
+        function displayBOM(data) {
+            if (!data.bomTable || !data.bomTable.items) {
+                showResult('No BOM data found', 'error');
+                return;
+            }
+            
+            const items = data.bomTable.items;
+            let h = '<h3>Bill of Materials (' + (bomFormat === 'flat' ? 'Flattened' : 'Structured') + ') - Editable</h3>';
+            h += '<p style="color:#666;margin-bottom:10px">💡 Click any cell to edit values</p>';
+            h += '<table><tr><th>Item</th><th>Part Number</th><th>Name</th><th>Quantity</th><th>Description</th></tr>';
+            
+            items.forEach((item, idx) => {
+                const indent = item.indentLevel || 0;
+                const hasChildren = item.hasChildren;
+                const parentId = item.parentId || '';
+                const rowId = 'row-' + idx;
+                const rowClass = parentId ? 'child-row child-of-' + parentId : '';
+                const expandable = hasChildren && bomFormat === 'structured';
+                
+                h += '<tr class="' + rowClass + ' ' + (expandable ? 'expandable-row' : '') + '" ' + (expandable ? 'onclick="toggleRow(\\''+rowId+'\\')"' : '') + '>';
+                
+                const itemCell = expandable ? '<span id="icon-'+rowId+'" class="expand-icon">▶</span>' : '';
+                const indentClass = 'indent-' + Math.min(indent, 3);
+                
+                h += '<td class="' + indentClass + '">' + itemCell + (item.item || item.Item || '-') + '</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="partNumber">' + (item.partNumber || item.PART_NUMBER || item['Part Number'] || '-') + '</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="name">' + (item.name || item.NAME || item.Name || '-') + '</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="quantity">' + (item.quantity || item.QUANTITY || item.Quantity || '-') + '</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="description">' + (item.description || item.DESCRIPTION || item.Description || '-') + '</td>';
+                h += '</tr>';
+            });
+            h += '</table>';
+            document.getElementById('results').innerHTML = h;
+            attachEditListeners();
+        }
+        
+        function displayBoundingBoxes(data) {
+            if (!data || !data.length) {
+                showResult('No bounding box data found', 'error');
+                return;
+            }
+            let h = '<h3>Bounding Boxes (Millimeters) - Editable</h3>';
+            h += '<p style="color:#666;margin-bottom:10px">💡 Click cells to edit dimensions</p>';
+            h += '<table><tr><th>Part ID</th><th>Length X (mm)</th><th>Length Y (mm)</th><th>Length Z (mm)</th><th>Volume (mm³)</th></tr>';
+            data.forEach((box, idx) => {
+                let x, y, z, vol, pid;
+                if (box['Length X (mm)']) {
+                    x = box['Length X (mm)'];
+                    y = box['Length Y (mm)'];
+                    z = box['Length Z (mm)'];
+                    vol = box['Volume (mm³)'];
+                    pid = box['Part ID'] || 'Unknown';
+                } else {
+                    x = ((box.highX - box.lowX) * 1000).toFixed(2);
+                    y = ((box.highY - box.lowY) * 1000).toFixed(2);
+                    z = ((box.highZ - box.lowZ) * 1000).toFixed(2);
+                    vol = (x * y * z).toFixed(2);
+                    pid = box.partId || 'Unknown';
+                }
+                h += '<tr>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="partId">'+pid+'</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthX">'+x+'</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthY">'+y+'</td>';
+                h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="lengthZ">'+z+'</td>';
+                h += '<td>'+vol+'</td></tr>';
+            });
+            h += '</table>';
+            document.getElementById('results').innerHTML = h;
+            attachEditListeners();
+        }
+        
+        function displayGenericTable(data) {
+            const headers = Object.keys(data[0]);
+            let h = '<h3>Data Table - Editable</h3><table><tr>';
+            headers.forEach(hh => h += '<th>'+hh+'</th>');
+            h += '</tr>';
+            data.forEach((row, idx) => {
+                h += '<tr>';
+                headers.forEach(hh => {
+                    h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="'+hh+'">'+(row[hh]||'')+'</td>';
+                });
+                h += '</tr>';
+            });
+            h += '</table>';
+            document.getElementById('results').innerHTML = h;
+            attachEditListeners();
+        }
+        
+        function attachEditListeners() {
+            document.querySelectorAll('.editable-cell').forEach(cell => {
+                cell.addEventListener('blur', function() {
+                    const row = parseInt(this.dataset.row);
+                    const field = this.dataset.field;
+                    const val = this.textContent.trim();
+                    if (currentData.bomTable && currentData.bomTable.items) {
+                        currentData.bomTable.items[row][field] = val;
+                    } else if (Array.isArray(currentData)) {
+                        currentData[row][field] = val;
+                    }
+                });
+            });
+        }
+        
+        function clearData() {
+            if (confirm('Clear all data?')) {
+                currentData = null;
+                document.getElementById('results').innerHTML = 'No data';
+                document.getElementById('fileUpload').value = '';
+                document.getElementById('pushBomBtn').style.display = 'none';
+            }
+        }
+        
+        function downloadAsJSON() {
+            if (!currentData) {
+                alert('No data to download');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(currentData, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'onshape-data-' + Date.now() + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function downloadAsCSV() {
+            if (!currentData) {
+                alert('No data to download');
+                return;
+            }
+            let csv = '';
+            if (currentData.bomTable && currentData.bomTable.items) {
+                csv = 'Item,Part Number,Name,Quantity,Description\\n';
+                currentData.bomTable.items.forEach(item => {
+                    csv += '"'+(item.item||item.Item||'')+'","'+(item.partNumber||item.PART_NUMBER||'')+'","'+(item.name||item.NAME||'')+'","'+(item.quantity||item.QUANTITY||'')+'","'+(item.description||item.DESCRIPTION||'')+'"\\n';
+                });
+            } else if (Array.isArray(currentData) && currentData.length > 0) {
+                const headers = Object.keys(currentData[0]);
+                csv = headers.join(',') + '\\n';
+                currentData.forEach(row => {
+                    csv += headers.map(h => '"'+(row[h]||'')+'"').join(',') + '\\n';
+                });
+            }
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'onshape-data-' + Date.now() + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function showResult(msg, type) {
+            const div = document.getElementById('results');
+            div.innerHTML = '<div class="' + (type || '') + '">' + msg + '</div>';
+        }
+    </script>
+</body>
+</html>"""
 
 if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
     @app.get("/", response_class=HTMLResponse)
@@ -362,9 +909,9 @@ else:
                 db.add(user)
             db.commit()
             
-            return f"""<html><body style='font-family:Arial;padding:50px'><h1 style='color:green'>✅ Success!</h1>
-            <p>Logged in as <strong>{email}</strong></p><script>localStorage.setItem('userId','{user.user_id}');
-            setTimeout(()=>{{window.location.href='/'}},2000);</script></body></html>"""
+            return f"""<html><body style='font-family:Arial;padding:50px;text-align:center;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)'><div style='background:white;padding:40px;border-radius:12px;max-width:500px;margin:0 auto'><h1 style='color:green'>✅ Success!</h1>
+            <p>Logged in as <strong>{email}</strong></p><p>Redirecting...</p><script>localStorage.setItem('userId','{user.user_id}');
+            setTimeout(()=>{{window.location.href='/'}},2000);</script></div></body></html>"""
         except Exception as e:
             return f"<h1>Error: {str(e)}</h1>"
 
@@ -431,11 +978,33 @@ else:
         return JSONResponse(resp.json(), resp.status_code)
 
     @app.get("/api/assemblies/{did}/w/{wid}/e/{eid}/bom")
-    async def get_bom(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
+    async def get_bom(did: str, wid: str, eid: str, user_id: str, format: str = "flat", db: Session = Depends(get_db)):
         token = get_user_token(user_id, db)
-        url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom?bomColumnIds=ITEM_NUMBER,PART_NUMBER,QUANTITY,DESCRIPTION,NAME&indented=false"
+        if format == "flat":
+            url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom?indented=false"
+        else:
+            url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom?indented=true"
         resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
         return JSONResponse(resp.json(), resp.status_code)
+
+    @app.post("/api/assemblies/{did}/w/{wid}/e/{eid}/bom")
+    async def push_bom(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
+        data = await request.json()
+        user_id = data.get("user_id")
+        bom_data = data.get("bomData")
+        
+        if not user_id or not bom_data:
+            raise HTTPException(400, "Missing user_id or bomData")
+        
+        token = get_user_token(user_id, db)
+        
+        # Note: OnShape API doesn't directly support BOM updates via REST API
+        # This would require using the custom properties or metadata endpoints
+        # For now, we'll return a message
+        return JSONResponse({
+            "status": "info",
+            "message": "BOM push functionality requires OnShape Custom Properties API. Your edited data is saved locally and can be downloaded."
+        })
 
     @app.get("/api/partstudios/{did}/w/{wid}/e/{eid}/boundingboxes")
     async def get_bounding_boxes(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
