@@ -699,4 +699,229 @@ def get_html_content():
             if (currentData.bomTable && currentData.bomTable.items) {
                 csv = 'Item,Part Number,Name,Quantity,Description\\n';
                 currentData.bomTable.items.forEach(function(item) {
+                    csv += '"'+(item.item||'')+'","'+(item.partNumber||'')+'","'+(item.name||'')+'","'+(item.quantity||'')+'","'+(item.description||'')+'"\\n';
+                });
+            } else if (Array.isArray(currentData) && currentData.length > 0) {
+                const headers = Object.keys(currentData[0]);
+                csv = headers.join(',') + '\\n';
+                currentData.forEach(function(row) {
+                    csv += headers.map(function(h) { return '"'+(row[h]||'')+'"'; }).join(',') + '\\n';
+                });
+            }
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'onshape-data-' + Date.now() + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function showResult(msg, type) {
+            const div = document.getElementById('results');
+            div.innerHTML = '<div class="' + (type || '') + '">' + msg + '</div>';
+        }
+    </script>
+</body>
+</html>"""
+    return html
+
+if not CLIENT_ID or not CLIENT_SECRET or not REDIRECT_URI:
+    @app.get("/", response_class=HTMLResponse)
+    def missing_config():
+        return "<h1>Error: Missing environment variables</h1>"
+else:
+    @app.get("/", response_class=HTMLResponse)
+    def root():
+        return get_html_content()
+
+    @app.get("/login")
+    def login():
+        params = {
+            "response_type": "code",
+            "client_id": CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "scope": SCOPE,
+            "state": "aleks_state_123"
+        }
+        from urllib.parse import urlencode
+        url = AUTH_URL + "?" + urlencode(params)
+        return RedirectResponse(url)
+
+    @app.get("/callback", response_class=HTMLResponse)
+    async def callback(request: Request, db: Session = Depends(get_db)):
+        code = request.query_params.get("code")
+        error = request.query_params.get("error")
+        
+        if error:
+            return f"<h1>Error: {error}</h1><button onclick='window.location.href=\"/\"'>Back</button>"
+        
+        if not code:
+            return "<h1>Missing code</h1><button onclick='window.location.href=\"/\"'>Back</button>"
+
+        auth_header = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_header}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI
+        }
+        
+        try:
+            resp = requests.post(TOKEN_URL, headers=headers, data=data, timeout=10)
+            if resp.status_code != 200:
+                return f"<h1>Token error</h1><pre>{resp.text}</pre>"
+
+            token_data = resp.json()
+            access_token = token_data.get("access_token")
+            refresh_token = token_data.get("refresh_token")
+            expires_in = token_data.get("expires_in", 3600)
+            
+            # Get user info from OnShape
+            user_resp = requests.get("https://cad.onshape.com/api/users/session", 
+                                     headers={"Authorization": f"Bearer {access_token}"})
+            user_info = user_resp.json()
+            onshape_user_id = user_info.get("id")
+            email = user_info.get("email", f"user_{onshape_user_id}")
+            
+            # Save or update user in database
+            user = db.query(User).filter(User.onshape_user_id == onshape_user_id).first()
+            if user:
+                user.access_token = encrypt_token(access_token)
+                user.refresh_token = encrypt_token(refresh_token) if refresh_token else None
+                user.token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+                user.last_login = datetime.utcnow()
+                user.email = email
+            else:
+                import uuid
+                user = User(
+                    user_id=str(uuid.uuid4()),
+                    email=email,
+                    onshape_user_id=onshape_user_id,
+                    access_token=encrypt_token(access_token),
+                    refresh_token=encrypt_token(refresh_token) if refresh_token else None,
+                    token_expires_at=datetime.utcnow() + timedelta(seconds=expires_in)
+                )
+                db.add(user)
+            
+            db.commit()
+            
+            return f"""<html><body style='font-family: Arial; padding: 50px;'>
+                <h1 style='color: green;'>✅ Success!</h1>
+                <p>You are now logged in as <strong>{email}</strong></p>
+                <p>Your session has been saved securely in the database.</p>
+                <script>
+                    localStorage.setItem('userId', '{user.user_id}');
+                    setTimeout(function() {{ window.location.href = '/'; }}, 2000);
+                </script>
+            </body></html>"""
+        except Exception as e:
+            return f"<h1>Error: {str(e)}</h1>"
+
+    # Helper function to get user token
+    def get_user_token(user_id: str, db: Session):
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(401, "User not found")
+        
+        # Check if token expired
+        if user.token_expires_at < datetime.utcnow():
+            # Refresh token logic here (not implemented in basic version)
+            raise HTTPException(401, "Token expired, please login again")
+        
+        return decrypt_token(user.access_token)
+
+    @app.get("/api/user/info")
+    async def get_user_info(user_id: str, db: Session = Depends(get_db)):
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(404, "User not found")
+        return {"email": user.email, "user_id": user.user_id}
+
+    @app.post("/api/user/save-document")
+    async def save_document(request: Request, db: Session = Depends(get_db)):
+        data = await request.json()
+        user_id = data.get("user_id")
+        document_id = data.get("document_id")
+        workspace_id = data.get("workspace_id")
+        element_id = data.get("element_id")
+        
+        if not user_id or not document_id:
+            raise HTTPException(400, "Missing required fields")
+        
+        # Check if document already exists for user
+        import uuid
+        doc = db.query(UserDocument).filter(
+            UserDocument.user_id == user_id,
+            UserDocument.document_id == document_id
+        ).first()
+        
+        if doc:
+            doc.workspace_id = workspace_id
+            doc.element_id = element_id
+            doc.last_used_at = datetime.utcnow()
+        else:
+            doc = UserDocument(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                document_id=document_id,
+                workspace_id=workspace_id,
+                element_id=element_id,
+                document_name="Document " + document_id[:8]
+            )
+            db.add(doc)
+        
+        db.commit()
+        return {"status": "success"}
+
+    @app.get("/api/user/documents")
+    async def get_user_documents(user_id: str, db: Session = Depends(get_db)):
+        docs = db.query(UserDocument).filter(UserDocument.user_id == user_id).order_by(UserDocument.last_used_at.desc()).all()
+        return [
+            {
+                "id": doc.id,
+                "document_id": doc.document_id,
+                "workspace_id": doc.workspace_id,
+                "element_id": doc.element_id,
+                "document_name": doc.document_name,
+                "last_used_at": doc.last_used_at.isoformat()
+            }
+            for doc in docs
+        ]
+
+    @app.get("/api/documents")
+    async def get_documents(user_id: str, db: Session = Depends(get_db)):
+        token = get_user_token(user_id, db)
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get("https://cad.onshape.com/api/documents", headers=headers)
+        return JSONResponse(resp.json(), resp.status_code)
+
+    @app.get("/api/documents/{did}/w/{wid}/elements")
+    async def get_elements(did: str, wid: str, user_id: str, db: Session = Depends(get_db)):
+        token = get_user_token(user_id, db)
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"https://cad.onshape.com/api/documents/d/{did}/w/{wid}/elements"
+        resp = requests.get(url, headers=headers)
+        return JSONResponse(resp.json(), resp.status_code)
+
+    @app.get("/api/assemblies/{did}/w/{wid}/e/{eid}/bom")
+    async def get_bom(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
+        token = get_user_token(user_id, db)
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/bom"
+        resp = requests.get(url, headers=headers)
+        return JSONResponse(resp.json(), resp.status_code)
+
+    @app.get("/api/partstudios/{did}/w/{wid}/e/{eid}/boundingboxes")
+    async def get_bounding_boxes(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
+        token = get_user_token(user_id, db)
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
+        resp = requests.get(url, headers=headers)
+        return JSONResponse(resp.json(), resp.status_code)e.items) {
+                csv = 'Item,Part Number,Name,Quantity,Description\\n';
+                currentData.bomTable.items.forEach(function(item) {
                     csv += '"'+(
