@@ -26,4 +26,6 @@ Status Code: 400_". Also it is able to check API working statuss.
 
   (20.11.2025) Error with javascript syntax, dosent allow me to press anybuttons. AT TIME Claude code version - 27v  
   (11:23PM)Clean and fixed version works a lot better, now allows to edit CSV or JSON file format, and save those values. Cannot access, bounding box, gives faulty *Get BOM* results using ID's.  
-  (02.51PM) OnShape API with data base - began working on data base for OnShapes API, to save *keys* and *ID's* for every user that is using it, and as *primary key* using *emails* or custom *username* , made by a person itself, later for the coresponding *email* or *user* that *keys* and *ID's* will be used for OAuth and to authorize account for usage with *This api -> OnShapes Rest API* for comunnication or fetching files.
+  (02.51PM) OnShape API with data base - began working on data base for OnShapes API, to save *keys* and *ID's* for every user that is using it, and as *primary key* using *emails* or custom *username* , made by a person itself, later for the coresponding *email* or *user* that *keys* and *ID's* will be used for OAuth and to authorize account for usage with *This api -> OnShapes Rest API* for comunnication or fetching files.  
+
+  (21.11.2025) DataBase finished, now server can also pull data depending on the login user. Save ID's such as WorkSpace, Elemenet and Document. Push File back to OnShape - Currently unsusessful, can Log out, can choose what format BOM is - working 50/50, EVERYTHING else stays pretty much the same.
