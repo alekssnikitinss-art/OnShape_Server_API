@@ -29,8 +29,8 @@ Status Code: 400_". Also it is able to check API working statuss.
   (02.51PM) OnShape API with data base - began working on data base for OnShapes API, to save *keys* and *ID's* for every user that is using it, and as *primary key* using *emails* or custom *username* , made by a person itself, later for the coresponding *email* or *user* that *keys* and *ID's* will be used for OAuth and to authorize account for usage with *This api -> OnShapes Rest API* for comunnication or fetching files.  
 
   (21.11.2025) DataBase finished, now server can also pull data depending on the login user. Save ID's such as WorkSpace, Elemenet and Document. Push File back to OnShape - Currently unsusessful, can Log out, can choose what format BOM is - working 50/50, EVERYTHING else stays pretty much the same.  
-  (02.45 PM) Recived new info about what to do, for server, where to add BOM overrwrite values. Created a new Issue in github - "Vai ir iespējams dabūt no configurācijām "Variable" kas ir iedvadīts deteļai kā garums, to kautkā ievilkt garuma property"".  
-
+  (02.45 PM) Recived new info about what to do, for server, where to add BOM overrwrite values. Created a new Issue in github - "Vai ir iespējams dabūt no configurācijām "Variable" kas ir iedvadīts deteļai kā garums, to kautkā ievilkt garuma property"".    
+  (24.11.25) FOCUSING ON ADDING NEW FEATURES- using ggoles gemini, tried to make feature script work, to later amplify it with the api, featurescript refuesed to work. Everything else seems to work correcrly, some errors for redircet in chromes google console.
 
 
 
