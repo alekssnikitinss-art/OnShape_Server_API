@@ -1103,61 +1103,136 @@ else:
     async def get_variables(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
         """Get configuration variables from part studio"""
         token = get_user_token(user_id, db)
-        
-        # First, get all parts in the part studio
-        parts_url = f"https://cad.onshape.com/api/parts/d/{did}/w/{wid}/e/{eid}"
-        parts_resp = requests.get(parts_url, headers={"Authorization": f"Bearer {token}"})
-        
-        if parts_resp.status_code != 200:
-            return JSONResponse({"error": "Failed to fetch parts"}, 500)
-        
-        parts_data = parts_resp.json()
         variables = []
         
-        # Get metadata for each part to find configuration variables
-        for part in parts_data:
-            part_id = part.get('partId')
-            if not part_id:
-                continue
+        try:
+            # Method 1: Try to get features which may contain variable definitions
+            features_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/features"
+            features_resp = requests.get(features_url, headers={"Authorization": f"Bearer {token}"})
             
-            # Get part metadata which includes configuration info
-            meta_url = f"https://cad.onshape.com/api/parts/d/{did}/w/{wid}/e/{eid}/partid/{part_id}/metadata"
-            meta_resp = requests.get(meta_url, headers={"Authorization": f"Bearer {token}"})
+            if features_resp.status_code == 200:
+                features_data = features_resp.json()
+                # Look for variable features
+                if 'features' in features_data:
+                    for feature in features_data.get('features', []):
+                        feature_type = feature.get('message', {}).get('featureType', '')
+                        if feature_type == 'variable' or 'variable' in feature_type.lower():
+                            params = feature.get('message', {}).get('parameters', [])
+                            for param in params:
+                                var_name = param.get('variableName') or param.get('message', {}).get('variableName')
+                                if var_name:
+                                    variables.append({
+                                        'name': var_name,
+                                        'value': param.get('expression', param.get('message', {}).get('expression', '')),
+                                        'unit': '',
+                                        'featureId': feature.get('featureId', ''),
+                                        'partId': 'Global'
+                                    })
             
-            if meta_resp.status_code == 200:
-                metadata = meta_resp.json()
-                # Extract configuration variables from metadata
-                if 'properties' in metadata:
-                    for prop in metadata.get('properties', []):
-                        if prop.get('name', '').startswith('#') or prop.get('propertyId', '').startswith('configuration'):
-                            variables.append({
-                                'name': prop.get('name', ''),
-                                'value': prop.get('value', ''),
-                                'unit': prop.get('unit', ''),
-                                'partId': part_id,
-                                'partName': part.get('name', '')
-                            })
-        
-        # Also try to get feature variables
-        features_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/features"
-        features_resp = requests.get(features_url, headers={"Authorization": f"Bearer {token}"})
-        
-        if features_resp.status_code == 200:
-            features_data = features_resp.json()
-            for feature in features_data.get('features', []):
-                if feature.get('message', {}).get('featureType') == 'variable':
-                    params = feature.get('message', {}).get('parameters', [])
-                    for param in params:
-                        if 'variableName' in param:
-                            variables.append({
-                                'name': param.get('variableName', ''),
-                                'value': param.get('expression', ''),
-                                'unit': '',
-                                'featureId': feature.get('featureId', ''),
-                                'partId': 'Global'
-                            })
-        
-        return JSONResponse({"variables": variables, "count": len(variables)})
+            # Method 2: Get parts and their metadata
+            parts_url = f"https://cad.onshape.com/api/parts/d/{did}/w/{wid}/e/{eid}"
+            parts_resp = requests.get(parts_url, headers={"Authorization": f"Bearer {token}"})
+            
+            if parts_resp.status_code == 200:
+                parts_data = parts_resp.json()
+                
+                # Check if response is a list or dict
+                parts_list = parts_data if isinstance(parts_data, list) else []
+                
+                for part in parts_list:
+                    part_id = part.get('partId')
+                    part_name = part.get('name', 'Unknown')
+                    
+                    if not part_id:
+                        continue
+                    
+                    # Try to get part metadata
+                    try:
+                        meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
+                        meta_resp = requests.get(meta_url, headers={"Authorization": f"Bearer {token}"})
+                        
+                        if meta_resp.status_code == 200:
+                            metadata = meta_resp.json()
+                            if 'properties' in metadata:
+                                for prop in metadata.get('properties', []):
+                                    prop_name = prop.get('name', '')
+                                    # Look for configuration-related properties
+                                    if prop_name.startswith('#') or 'length' in prop_name.lower() or 'width' in prop_name.lower():
+                                        variables.append({
+                                            'name': prop_name,
+                                            'value': str(prop.get('value', '')),
+                                            'unit': prop.get('units', ''),
+                                            'partId': part_id,
+                                            'partName': part_name
+                                        })
+                    except Exception as e:
+                        # Skip parts that fail
+                        continue
+            
+            # Method 3: Try to get mass properties which sometimes include custom data
+            try:
+                mass_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/massproperties"
+                mass_resp = requests.get(mass_url, headers={"Authorization": f"Bearer {token}"})
+                
+                if mass_resp.status_code == 200:
+                    mass_data = mass_resp.json()
+                    if 'bodies' in mass_data:
+                        for body in mass_data.get('bodies', []):
+                            # Extract any configuration variables from bodies
+                            if 'periphery' in body or 'boundingBox' in body:
+                                bbox = body.get('boundingBox', [])
+                                if len(bbox) >= 6:
+                                    # Calculate dimensions
+                                    length_x = (bbox[3] - bbox[0]) * 1000  # meters to mm
+                                    length_y = (bbox[4] - bbox[1]) * 1000
+                                    length_z = (bbox[5] - bbox[2]) * 1000
+                                    
+                                    variables.append({
+                                        'name': 'BBox_Length_X',
+                                        'value': f"{length_x:.2f}",
+                                        'unit': 'mm',
+                                        'partId': body.get('partId', 'Unknown'),
+                                        'partName': 'From BoundingBox'
+                                    })
+                                    variables.append({
+                                        'name': 'BBox_Length_Y',
+                                        'value': f"{length_y:.2f}",
+                                        'unit': 'mm',
+                                        'partId': body.get('partId', 'Unknown'),
+                                        'partName': 'From BoundingBox'
+                                    })
+                                    variables.append({
+                                        'name': 'BBox_Length_Z',
+                                        'value': f"{length_z:.2f}",
+                                        'unit': 'mm',
+                                        'partId': body.get('partId', 'Unknown'),
+                                        'partName': 'From BoundingBox'
+                                    })
+            except Exception as e:
+                # Mass properties is optional
+                pass
+            
+            # If no variables found, provide helpful message
+            if len(variables) == 0:
+                return JSONResponse({
+                    "variables": [],
+                    "count": 0,
+                    "message": "No configuration variables found. Make sure your Part Studio has variables defined (like #garums).",
+                    "debug": {
+                        "features_status": features_resp.status_code if 'features_resp' in locals() else "not_called",
+                        "parts_status": parts_resp.status_code if 'parts_resp' in locals() else "not_called"
+                    }
+                })
+            
+            return JSONResponse({"variables": variables, "count": len(variables)})
+            
+        except Exception as e:
+            return JSONResponse({
+                "error": str(e),
+                "variables": variables,
+                "count": len(variables),
+                "message": f"Partial success: Found {len(variables)} variables, but encountered error: {str(e)}"
+            }, status_code=200)
 
     @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/sync-variables")
     async def sync_variables(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
