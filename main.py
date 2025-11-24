@@ -579,10 +579,31 @@ def get_html():
             try {
                 const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/variables?user_id=' + userId);
                 const data = await r.json();
+                console.log('Variables response:', data);
+                
+                // Check if there's an error or debug message
+                if (data.error) {
+                    showResult('Error: ' + data.error + (data.message ? ' - ' + data.message : ''), 'error');
+                    if (data.debug) {
+                        console.log('Debug info:', data.debug);
+                    }
+                    return;
+                }
+                
+                // Check if message exists (no variables found)
+                if (data.message && data.count === 0) {
+                    showResult(data.message, 'info');
+                    if (data.debug) {
+                        console.log('Debug info:', data.debug);
+                    }
+                    return;
+                }
+                
                 currentData = data;
                 displayVariables(data);
                 document.getElementById('syncVarsBtn').style.display = 'inline-block';
             } catch (e) {
+                console.error('Error fetching variables:', e);
                 showResult('Error: ' + e.message, 'error');
             }
         }
@@ -820,19 +841,36 @@ def get_html():
         }
         
         function displayVariables(data) {
-            if (!data || !data.variables || data.variables.length === 0) {
-                showResult('No configuration variables found', 'error');
+            console.log('Displaying variables:', data);
+            
+            if (!data) {
+                showResult('No data received', 'error');
                 return;
             }
-            let h = '<h3>Configuration Variables - Editable</h3>';
-            h += '<p style="color:#666;margin-bottom:10px">💡 These are configuration variables (like #garums). Click "Sync Variables to Properties" to add them to BOM.</p>';
+            
+            if (!data.variables || data.variables.length === 0) {
+                let msg = 'No configuration variables found';
+                if (data.message) {
+                    msg = data.message;
+                }
+                if (data.debug) {
+                    msg += '<br><br><strong>Debug Info:</strong><br>';
+                    msg += 'Features API status: ' + data.debug.features_status + '<br>';
+                    msg += 'Parts API status: ' + data.debug.parts_status;
+                }
+                showResult(msg, 'info');
+                return;
+            }
+            
+            let h = '<h3>Configuration Variables - Found ' + data.count + ' variables</h3>';
+            h += '<p style="color:#666;margin-bottom:10px">💡 These are configuration variables and properties. Click "Sync Variables to Properties" to add them to BOM.</p>';
             h += '<table><tr><th>Variable Name</th><th>Value</th><th>Unit</th><th>Part/Feature</th></tr>';
             data.variables.forEach((v, idx) => {
                 h += '<tr>';
-                h += '<td><strong>' + (v.name || v.variableName || '-') + '</strong></td>';
+                h += '<td><strong>' + (v.name || v.variableName || 'Unknown') + '</strong></td>';
                 h += '<td class="editable-cell" contenteditable="true" data-row="'+idx+'" data-field="value">' + (v.value || v.expression || '-') + '</td>';
                 h += '<td>' + (v.unit || v.units || '-') + '</td>';
-                h += '<td>' + (v.partId || v.featureId || 'Global') + '</td>';
+                h += '<td>' + (v.partName || v.partId || v.featureId || 'Global') + '</td>';
                 h += '</tr>';
             });
             h += '</table>';
