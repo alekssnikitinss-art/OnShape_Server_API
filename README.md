@@ -9,6 +9,7 @@ Holds the main code for the API, editable if needed.
 Hold neccecery commands that are used when starting the server by *render.com*  
 **Render.com**  
 Is used to start the website and allowing to communicate with OnShape via OAuth, API, Diffrent ID's and for fetching files.
+**ChatGPT.Chats** Contain Chat links from chatgpt that were used for keeping track of histroy in AI.
 
 Link to access the server - https://onshape-server-api.onrender.com/  
 The server can also start as soon as an iteration is performed, it can disconnect if there has been no activity for 15 minutes.
