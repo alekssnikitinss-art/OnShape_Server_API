@@ -337,6 +337,7 @@ def get_html():
                 <button id="getBomBtn">📊 Get BOM</button>
                 <button id="getBboxBtn">📏 Get Bounding Boxes</button>
                 <button id="getVarsBtn">🔢 Get Configuration Variables</button>
+                <button id="createLengthPropsBtn">📐 Create Length Properties</button>
                 <button class="push-btn" id="syncVarsBtn" style="display:none">🔄 Sync Variables to Properties</button>
                 <button class="push-btn" id="pushBomBtn" style="display:none">⬆️ Push BOM to OnShape</button>
             </div>
@@ -382,6 +383,7 @@ def get_html():
         document.getElementById('getBomBtn').onclick = getBOM;
         document.getElementById('getBboxBtn').onclick = getBoundingBoxes;
         document.getElementById('getVarsBtn').onclick = getConfigurationVariables;
+        document.getElementById('createLengthPropsBtn').onclick = createLengthProperties;
         document.getElementById('syncVarsBtn').onclick = syncVariablesToProperties;
         document.getElementById('saveDocBtn').onclick = saveDocument;
         document.getElementById('loadSavedBtn').onclick = loadSavedDocuments;
@@ -636,6 +638,40 @@ def get_html():
                 }
             } catch (e) {
                 showResult('Error syncing: ' + e.message, 'error');
+            }
+        }
+        
+        async function createLengthProperties() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid || !eid) {
+                showResult('Please fill all fields', 'error');
+                return;
+            }
+            if (!confirm('Create Length, Width, Height properties from bounding boxes? This will add custom properties to all parts.')) {
+                return;
+            }
+            showResult('Creating length properties from bounding boxes...', 'info');
+            try {
+                const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/create-length-properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                if (r.ok) {
+                    const result = await r.json();
+                    showResult('✅ Created length properties for ' + result.parts_count + ' parts! Refresh BOM to see Length, Width, Height columns.', 'success');
+                } else {
+                    const error = await r.text();
+                    showResult('Failed: ' + error, 'error');
+                }
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
             }
         }
         
@@ -1262,7 +1298,94 @@ else:
                 "message": f"Found {len(variables)} variables. Error: {str(e)}"
             }, status_code=200)
 
-    @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/sync-variables")
+    @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/create-length-properties")
+    async def create_length_properties(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
+        """Create Length, Width, Height custom properties from bounding boxes"""
+        data = await request.json()
+        user_id = data.get("user_id")
+        
+        if not user_id:
+            raise HTTPException(400, "Missing user_id")
+        
+        token = get_user_token(user_id, db)
+        
+        # Get bounding boxes
+        bbox_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
+        bbox_resp = requests.get(bbox_url, headers={"Authorization": f"Bearer {token}"})
+        
+        if bbox_resp.status_code != 200:
+            raise HTTPException(500, f"Failed to get bounding boxes: {bbox_resp.text}")
+        
+        bbox_data = bbox_resp.json()
+        parts_count = 0
+        
+        for box in bbox_data:
+            part_id = box.get('partId')
+            if not part_id:
+                continue
+            
+            # Calculate dimensions in mm
+            length_x = (box.get('highX', 0) - box.get('lowX', 0)) * 1000
+            length_y = (box.get('highY', 0) - box.get('lowY', 0)) * 1000
+            length_z = (box.get('highZ', 0) - box.get('lowZ', 0)) * 1000
+            
+            # Sort to get Length (max), Width (mid), Height (min)
+            dimensions = sorted([length_x, length_y, length_z], reverse=True)
+            length = dimensions[0]
+            width = dimensions[1]
+            height = dimensions[2]
+            
+            # Create custom properties
+            properties = [
+                {
+                    "name": "Length",
+                    "value": f"{length:.2f}",
+                    "valueType": "NUMBER",
+                    "units": "mm"
+                },
+                {
+                    "name": "Width",
+                    "value": f"{width:.2f}",
+                    "valueType": "NUMBER",
+                    "units": "mm"
+                },
+                {
+                    "name": "Height",
+                    "value": f"{height:.2f}",
+                    "valueType": "NUMBER",
+                    "units": "mm"
+                }
+            ]
+            
+            # Update part metadata
+            meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
+            
+            for prop in properties:
+                meta_payload = {
+                    "properties": [{
+                        "name": prop["name"],
+                        "value": prop["value"],
+                        "valueType": prop["valueType"]
+                    }]
+                }
+                
+                meta_resp = requests.post(
+                    meta_url,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    },
+                    json=meta_payload
+                )
+            
+            parts_count += 1
+        
+        return JSONResponse({
+            "status": "success",
+            "parts_count": parts_count,
+            "message": f"Created Length, Width, Height properties for {parts_count} parts. These will now appear in BOM."
+        })
+
     async def sync_variables(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
         """Sync configuration variables to custom properties so they appear in BOM"""
         data = await request.json()
