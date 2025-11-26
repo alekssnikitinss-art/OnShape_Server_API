@@ -1300,7 +1300,7 @@ else:
 
     @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/create-length-properties")
     async def create_length_properties(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
-        """Create Length, Width, Height custom properties from bounding boxes - works for Part Studios and Assemblies"""
+        """Create Length, Width, Height custom properties from bounding boxes using CORRECT OnShape API format"""
         data = await request.json()
         user_id = data.get("user_id")
         
@@ -1311,48 +1311,17 @@ else:
         parts_count = 0
         errors = []
         
-        # Try Part Studio bounding boxes first
+        # Get bounding boxes
         bbox_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
         bbox_resp = requests.get(bbox_url, headers={"Authorization": f"Bearer {token}"})
         
-        bbox_data = []
-        is_assembly = False
-        
         if bbox_resp.status_code != 200:
-            # Might be an Assembly - try getting parts from assembly
-            is_assembly = True
-            assembly_url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}"
-            assembly_resp = requests.get(assembly_url, headers={"Authorization": f"Bearer {token}"})
-            
-            if assembly_resp.status_code == 200:
-                assembly_data = assembly_resp.json()
-                # Get all part instances from assembly
-                instances = assembly_data.get('rootAssembly', {}).get('instances', [])
-                
-                for instance in instances:
-                    part_id = instance.get('id')
-                    # Get bounding box for each instance
-                    # For assemblies, we need to get the original part and its bbox
-                    if 'boundingBox' in instance:
-                        bbox = instance['boundingBox']
-                        bbox_data.append({
-                            'partId': part_id,
-                            'lowX': bbox[0],
-                            'lowY': bbox[1], 
-                            'lowZ': bbox[2],
-                            'highX': bbox[3],
-                            'highY': bbox[4],
-                            'highZ': bbox[5]
-                        })
-        else:
-            bbox_data = bbox_resp.json()
+            raise HTTPException(500, f"Failed to get bounding boxes: {bbox_resp.text}")
         
-        if not bbox_data:
-            raise HTTPException(500, "Could not get bounding box data. Make sure Element ID is valid.")
+        bbox_data = bbox_resp.json()
         
-        # Process each part
         for box in bbox_data:
-            part_id = box.get('partId') or box.get('id')
+            part_id = box.get('partId')
             if not part_id:
                 continue
             
@@ -1368,62 +1337,69 @@ else:
                 width = dimensions[1]
                 height = dimensions[2]
                 
-                # For assemblies, we need to find the source part document
-                if is_assembly:
-                    # Get instance info to find source part
-                    instance_url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}/instances/{part_id}"
-                    instance_resp = requests.get(instance_url, headers={"Authorization": f"Bearer {token}"})
-                    
-                    if instance_resp.status_code == 200:
-                        instance_data = instance_resp.json()
-                        # Get source document/element for this part
-                        part_doc_id = instance_data.get('documentId', did)
-                        part_elem_id = instance_data.get('elementId', eid)
-                        part_part_id = instance_data.get('partId', part_id)
-                        
-                        meta_url = f"https://cad.onshape.com/api/metadata/d/{part_doc_id}/w/{wid}/e/{part_elem_id}/p/{part_part_id}"
-                    else:
-                        # Fallback: try current document
-                        meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
-                else:
-                    # Part Studio - straightforward
-                    meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
+                # Step 1: GET existing metadata to get property IDs
+                get_meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
+                get_meta_resp = requests.get(get_meta_url, headers={"Authorization": f"Bearer {token}"})
                 
-                # Create metadata payload with all properties at once
-                meta_payload = {
-                    "properties": [
-                        {
-                            "name": "Length",
-                            "value": f"{length:.2f} mm",
+                if get_meta_resp.status_code != 200:
+                    errors.append(f"Part {part_id}: Failed to get metadata")
+                    continue
+                
+                existing_meta = get_meta_resp.json()
+                
+                # Find or create property IDs for Length, Width, Height
+                properties_to_update = []
+                
+                for prop_name, prop_value in [("Length", length), ("Width", width), ("Height", height)]:
+                    # Look for existing property
+                    existing_prop = None
+                    if 'properties' in existing_meta:
+                        for prop in existing_meta['properties']:
+                            if prop.get('name') == prop_name:
+                                existing_prop = prop
+                                break
+                    
+                    if existing_prop:
+                        # Use existing propertyId
+                        properties_to_update.append({
+                            "propertyId": existing_prop['propertyId'],
+                            "value": f"{prop_value:.2f} mm"
+                        })
+                    else:
+                        # Create new property (OnShape will auto-generate ID)
+                        properties_to_update.append({
+                            "name": prop_name,
+                            "value": f"{prop_value:.2f} mm",
                             "valueType": "STRING"
-                        },
+                        })
+                
+                # Step 2: POST update using correct OnShape format
+                href = existing_meta.get('href', get_meta_url)
+                
+                update_payload = {
+                    "items": [
                         {
-                            "name": "Width", 
-                            "value": f"{width:.2f} mm",
-                            "valueType": "STRING"
-                        },
-                        {
-                            "name": "Height",
-                            "value": f"{height:.2f} mm",
-                            "valueType": "STRING"
+                            "href": href,
+                            "properties": properties_to_update
                         }
                     ]
                 }
                 
-                # POST to create/update metadata
-                meta_resp = requests.post(
-                    meta_url,
+                # POST to metadata endpoint (not the part-specific one)
+                post_meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}"
+                post_meta_resp = requests.post(
+                    post_meta_url,
                     headers={
                         "Authorization": f"Bearer {token}",
                         "Content-Type": "application/json"
                     },
-                    json=meta_payload
+                    json=update_payload
                 )
                 
-                if meta_resp.status_code in [200, 201, 204]:
+                if post_meta_resp.status_code in [200, 201, 204]:
                     parts_count += 1
                 else:
-                    errors.append(f"Part {part_id}: {meta_resp.status_code}")
+                    errors.append(f"Part {part_id}: POST failed {post_meta_resp.status_code} - {post_meta_resp.text}")
                     
             except Exception as e:
                 errors.append(f"Part {part_id}: {str(e)}")
@@ -1432,12 +1408,12 @@ else:
         result = {
             "status": "success" if parts_count > 0 else "partial",
             "parts_count": parts_count,
-            "element_type": "Assembly" if is_assembly else "Part Studio",
-            "message": f"Created Length, Width, Height properties for {parts_count} parts in {('Assembly' if is_assembly else 'Part Studio')}. Open BOM in OnShape to see new columns!"
+            "message": f"✅ Created/Updated Length, Width, Height properties for {parts_count} parts! Open BOM in OnShape and click 'Update BOM' to see new columns."
         }
         
         if errors and len(errors) < 10:
-            result["errors"] = errors
+            result["errors"] = errors[:10]
+            result["error_count"] = len(errors)
         
         return JSONResponse(result)
 
