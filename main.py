@@ -481,10 +481,10 @@ def get_html():
             }
             showResult('Loading documents...', 'info');
             try {
-                const r = await fetch('/api/documents?user_id=' + userId);
-                const data = await r.json();
-                currentData = data;
-                displayDocuments(data);
+               const finalUrl = '/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/boundingboxes?user_id=' + userId;
+                    console.log('Mēģinu izsaukt URL:', finalUrl); // Pārbaudiet šo konsolē!
+            // ... tad seko:
+                const r = await fetch(finalUrl);
             } catch (e) {
                 showResult('Error: ' + e.message, 'error');
             }
