@@ -1356,13 +1356,26 @@ else:
                         'highY': bbox_info.get('highY', 0),
                         'highZ': bbox_info.get('highZ', 0)
                     })
-        elif bbox_resp.status_code == 200:
-            # It's a Part Studio
-            bbox_data_raw = bbox_resp.json()
-            for box in bbox_data_raw:
-                box['documentId'] = did
-                box['elementId'] = eid
-                bbox_data.append(box)
+      elif bbox_resp.status_code == 200:
+    # It's a Part Studio
+    try:
+        bbox_json = bbox_resp.json()
+    except json.JSONDecodeError:
+        # Apstrādā gadījumu, ja atbilde nav derīgs JSON
+        raise HTTPException(500, f"Invalid JSON response from Bounding Box API: {bbox_resp.text}")
+
+    # LABOJUMS: Part Studio Bounding Boxes API datus ieliek atslēgā 'bodies'
+    bbox_data_raw = bbox_json.get('bodies', []) 
+    
+    if not isinstance(bbox_data_raw, list):
+        raise HTTPException(500, "Expected 'bodies' field to be a list in Part Studio bounding box response.")
+
+    for box in bbox_data_raw:
+        if isinstance(box, dict):
+            box['documentId'] = did
+            box['elementId'] = eid
+            bbox_data.append(box)
+        # Ignorējam visus elementus, kas nav vārdnīcas (lai gan tas ir maz ticams)
         else:
             raise HTTPException(500, f"Failed to get bounding boxes: {bbox_resp.text}")
         
