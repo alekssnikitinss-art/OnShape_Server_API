@@ -33,8 +33,8 @@ Status Code: 400_". Also it is able to check API working statuss.
   (02.45 PM) Recived new info about what to do, for server, where to add BOM overrwrite values. Created a new Issue in github - "Vai ir iespējams dabūt no configurācijām "Variable" kas ir iedvadīts deteļai kā garums, to kautkā ievilkt garuma property"".    
   (24.11.25) FOCUSING ON ADDING NEW FEATURES- using googles gemini, tried to make feature script work, to later amplify it with the api, featurescript refuesed to work. Everything else seems to work correcrly, some errors for redircet in chromes google console.  
   (25.11.25) First time seeing an notify in console, that I can't acceses the OnShape to change values from HTML and API.  
-  (26.11.25) Lots of errors, some were internal server errors, mistakes in code that prevented to sent values back, Mostly seen errors where 400 and 500, depending on the function. GET and POST erros were seen, while trying to get variables and while trying to push data back to OnShape.
-
+  (26.11.25) Lots of errors, some were internal server errors, mistakes in code that prevented to sent values back, Mostly seen errors where 400 and 500, depending on the function. GET and POST erros were seen, while trying to get variables and while trying to push data back to OnShape.  
+  (02:52) The errors, have not been fixed, notes of errors have been made, issues have been created. FS code and Idea has been scraped, waas not work the time. API holds ups nicely, one improvment could be made, ON CLICK, response time between click and result, current results are averaging around *1250ms*, ideal would be *100 - 500ms*.
 
 
 
