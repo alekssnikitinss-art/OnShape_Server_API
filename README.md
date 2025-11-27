@@ -31,14 +31,15 @@ Status Code: 400_". Also it is able to check API working statuss.
 
   (21.11.2025) DataBase finished, now server can also pull data depending on the login user. Save ID's such as WorkSpace, Elemenet and Document. Push File back to OnShape - Currently unsusessful, can Log out, can choose what format BOM is - working 50/50, EVERYTHING else stays pretty much the same.  
   (02.45 PM) Recived new info about what to do, for server, where to add BOM overrwrite values. Created a new Issue in github - "Vai ir iespējams dabūt no configurācijām "Variable" kas ir iedvadīts deteļai kā garums, to kautkā ievilkt garuma property"".    
-  (24.11.25) FOCUSING ON ADDING NEW FEATURES- using googles gemini, tried to make feature script work, to later amplify it with the api, featurescript refuesed to work. Everything else seems to work correcrly, some errors for redircet in chromes google console.  
+  (24.11.25) FOCUSING ON ADDING NEW FEATURES- using google gemini, tried to make feature script work, to later amplify it with the api, featurescript refuesed to work. Everything else seems to work correcrly, some errors for redircet in chromes google console.  
   (25.11.25) First time seeing an notify in console, that I can't acceses the OnShape to change values from HTML and API.  
   (26.11.25) Lots of errors, some were internal server errors, mistakes in code that prevented to sent values back, Mostly seen errors where 400 and 500, depending on the function. GET and POST erros were seen, while trying to get variables and while trying to push data back to OnShape.  
   (02:52) The errors, have not been fixed, notes of errors have been made, issues have been created. FS code and Idea has been scraped, waas not work the time. API holds ups nicely, one improvment could be made, ON CLICK, response time between click and result, current results are averaging around *1250ms*, ideal would be *100 - 500ms*.   
   (27.11.2025)
   (10:06AM) New notes of issues have been made in regards of using File:"Lenght_test". New time stamps of OnClick speed seen, some improvments in MIN speed - 938MS while max remains bigger 1295ms.  
-  New files were added, for modifying and adding structure to the API and whole Server. For easier and faster working server.
-  
+  New files were added, for modifying and adding structure to the API and whole Server. For easier and faster working server.  
+  Tried to change ReDircet URL's in OnShape dev portal, soo the API can Trust my source and allow me to acces part and assemblies, property values and edit them, also makde function for pushing values back working. The change didn't help fixing the issue, made the website blank. AT 11:41AM website is able to respond correctly. Login button isnt getting the right Redircet option (Possible mistake in OnShapes Dev portal). Gemini chat gave possible soulutions for a fix. First replaceble part didnt. Check and compared URL's everything seems to be correct, no typos seen.  
+  I connected VsCode with my GitHub, for better coding and manegment, for further coding. Better and easeir to code and overview code, better to compare and update, edit it. 
 
 
 
