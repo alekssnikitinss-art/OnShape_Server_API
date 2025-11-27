@@ -73,8 +73,7 @@ def get_db():
         db.close()
 
 def get_html():
-    return 
-"""<!DOCTYPE html>
+    return """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
