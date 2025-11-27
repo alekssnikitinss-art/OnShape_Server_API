@@ -39,7 +39,8 @@ Status Code: 400_". Also it is able to check API working statuss.
   (10:06AM) New notes of issues have been made in regards of using File:"Lenght_test". New time stamps of OnClick speed seen, some improvments in MIN speed - 938MS while max remains bigger 1295ms.  
   New files were added, for modifying and adding structure to the API and whole Server. For easier and faster working server.  
   Tried to change ReDircet URL's in OnShape dev portal, soo the API can Trust my source and allow me to acces part and assemblies, property values and edit them, also makde function for pushing values back working. The change didn't help fixing the issue, made the website blank. AT 11:41AM website is able to respond correctly. Login button isnt getting the right Redircet option (Possible mistake in OnShapes Dev portal). Gemini chat gave possible soulutions for a fix. First replaceble part didnt. Check and compared URL's everything seems to be correct, no typos seen.  
-  I connected VsCode with my GitHub, for better coding and manegment, for further coding. Better and easeir to code and overview code, better to compare and update, edit it. 
+  I connected VsCode with my GitHub, for better coding and manegment, for further coding. Better and easeir to code and overview code, better to compare and update, edit it.   
+  (12:05PM) Fixed the issue with login redirect. Still failed to get variables from config.
 
 
 
