@@ -337,6 +337,7 @@ def get_html():
                 <button id="getBomBtn">📊 Get BOM</button>
                 <button id="getBboxBtn">📏 Get Bounding Boxes</button>
                 <button id="getVarsBtn">🔢 Get Configuration Variables</button>
+                <button id="previewLengthsBtn">👁️ Preview Length Properties</button>
                 <button id="createLengthPropsBtn">📐 Create Length Properties</button>
                 <button class="push-btn" id="syncVarsBtn" style="display:none">🔄 Sync Variables to Properties</button>
                 <button class="push-btn" id="pushBomBtn" style="display:none">⬆️ Push BOM to OnShape</button>
@@ -383,6 +384,7 @@ def get_html():
         document.getElementById('getBomBtn').onclick = getBOM;
         document.getElementById('getBboxBtn').onclick = getBoundingBoxes;
         document.getElementById('getVarsBtn').onclick = getConfigurationVariables;
+        document.getElementById('previewLengthsBtn').onclick = previewLengthProperties;
         document.getElementById('createLengthPropsBtn').onclick = createLengthProperties;
         document.getElementById('syncVarsBtn').onclick = syncVariablesToProperties;
         document.getElementById('saveDocBtn').onclick = saveDocument;
@@ -653,7 +655,7 @@ def get_html():
                 showResult('Please fill all fields', 'error');
                 return;
             }
-            if (!confirm('Create Length, Width, Height properties from bounding boxes? This will add custom properties to all parts.')) {
+            if (!confirm('Create Length, Width, Height properties from bounding boxes? This will add custom properties to all parts in OnShape.')) {
                 return;
             }
             showResult('Creating length properties from bounding boxes...', 'info');
@@ -665,7 +667,11 @@ def get_html():
                 });
                 if (r.ok) {
                     const result = await r.json();
-                    showResult('✅ Created length properties for ' + result.parts_count + ' parts! Refresh BOM to see Length, Width, Height columns.', 'success');
+                    let msg = result.message;
+                    if (result.errors && result.errors.length > 0) {
+                        msg += '<br><br><strong>Errors:</strong><br>' + result.errors.slice(0, 5).join('<br>');
+                    }
+                    showResult(msg, result.status === 'success' ? 'success' : 'error');
                 } else {
                     const error = await r.text();
                     showResult('Failed: ' + error, 'error');
@@ -673,6 +679,57 @@ def get_html():
             } catch (e) {
                 showResult('Error: ' + e.message, 'error');
             }
+        }
+        
+        async function previewLengthProperties() {
+            if (!userId) {
+                showResult('Please login first', 'error');
+                return;
+            }
+            const did = document.getElementById('documentId').value;
+            const wid = document.getElementById('workspaceId').value;
+            const eid = document.getElementById('elementId').value;
+            if (!did || !wid || !eid) {
+                showResult('Please fill all fields', 'error');
+                return;
+            }
+            showResult('Loading length properties preview...', 'info');
+            try {
+                const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/preview-length-properties?user_id=' + userId);
+                const result = await r.json();
+                if (result.status === 'success' || result.parts) {
+                    displayLengthPreview(result);
+                } else {
+                    showResult(result.message || 'Failed to load preview', 'error');
+                }
+            } catch (e) {
+                showResult('Error: ' + e.message, 'error');
+            }
+        }
+        
+        function displayLengthPreview(data) {
+            if (!data.parts || data.parts.length === 0) {
+                showResult('No parts found in this element', 'error');
+                return;
+            }
+            let h = '<h3>Length Properties Preview - ' + data.element_type + '</h3>';
+            h += '<p style="color:#666;margin-bottom:10px">💡 These values will be added as custom properties. Click "Create Length Properties" to push to OnShape.</p>';
+            h += '<table><tr><th>Part Name</th><th>Part ID</th><th>Length (mm)</th><th>Width (mm)</th><th>Height (mm)</th><th>Volume (mm³)</th></tr>';
+            data.parts.forEach(function(part) {
+                h += '<tr>';
+                h += '<td>' + (part.name || 'Unnamed') + '</td>';
+                h += '<td>' + (part.partId ? part.partId.substring(0, 12) + '...' : 'Unknown') + '</td>';
+                h += '<td><strong>' + part.length + '</strong></td>';
+                h += '<td><strong>' + part.width + '</strong></td>';
+                h += '<td><strong>' + part.height + '</strong></td>';
+                h += '<td>' + part.volume + '</td>';
+                h += '</tr>';
+            });
+            h += '</table>';
+            h += '<div style="margin-top:15px;padding:10px;background:#e7f3ff;border-radius:4px">';
+            h += '<strong>ℹ️ Next Step:</strong> Click "📐 Create Length Properties" to add these values to OnShape parts.';
+            h += '</div>';
+            document.getElementById('results').innerHTML = h;
         }
         
         async function pushBOMToOnShape() {
@@ -1329,6 +1386,135 @@ else:
                 "count": len(variables),
                 "message": f"Found {len(variables)} variables. Error: {str(e)[:100]}"
             }, status_code=200)
+
+    @app.get("/api/partstudios/{did}/w/{wid}/e/{eid}/preview-length-properties")
+    async def preview_length_properties(did: str, wid: str, eid: str, user_id: str, db: Session = Depends(get_db)):
+        """Preview Length, Width, Height for all parts WITHOUT creating properties"""
+        token = get_user_token(user_id, db)
+        
+        try:
+            # Try Part Studio first
+            bbox_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
+            bbox_resp = requests.get(bbox_url, headers={"Authorization": f"Bearer {token}"})
+            
+            bbox_data = []
+            element_type = "Part Studio"
+            
+            if bbox_resp.status_code == 400:
+                # It's an Assembly
+                element_type = "Assembly"
+                assembly_url = f"https://cad.onshape.com/api/assemblies/d/{did}/w/{wid}/e/{eid}"
+                assembly_resp = requests.get(assembly_url, headers={"Authorization": f"Bearer {token}"})
+                
+                if assembly_resp.status_code != 200:
+                    raise HTTPException(500, f"Failed to get assembly")
+                
+                assembly_data = assembly_resp.json()
+                parts = assembly_data.get('parts', [])
+                
+                for part in parts:
+                    if not isinstance(part, dict):
+                        continue
+                    part_id = part.get('partId')
+                    part_name = part.get('name', 'Unnamed')
+                    document_id = part.get('documentId', did)
+                    element_id = part.get('elementId')
+                    
+                    if not part_id or not element_id:
+                        continue
+                    
+                    # Get bounding box
+                    part_bbox_url = f"https://cad.onshape.com/api/parts/d/{document_id}/w/{wid}/e/{element_id}/partid/{part_id}/bodyboundingbox"
+                    part_bbox_resp = requests.get(part_bbox_url, headers={"Authorization": f"Bearer {token}"})
+                    
+                    if part_bbox_resp.status_code == 200:
+                        bbox_info = part_bbox_resp.json()
+                        if isinstance(bbox_info, dict):
+                            bbox_data.append({
+                                'partId': part_id,
+                                'name': part_name,
+                                'lowX': bbox_info.get('lowX', 0),
+                                'lowY': bbox_info.get('lowY', 0),
+                                'lowZ': bbox_info.get('lowZ', 0),
+                                'highX': bbox_info.get('highX', 0),
+                                'highY': bbox_info.get('highY', 0),
+                                'highZ': bbox_info.get('highZ', 0)
+                            })
+                            
+            elif bbox_resp.status_code == 200:
+                # It's a Part Studio
+                bbox_data_raw = bbox_resp.json()
+                if isinstance(bbox_data_raw, list):
+                    # Also get part names
+                    parts_url = f"https://cad.onshape.com/api/parts/d/{did}/w/{wid}/e/{eid}"
+                    parts_resp = requests.get(parts_url, headers={"Authorization": f"Bearer {token}"})
+                    part_names = {}
+                    if parts_resp.status_code == 200:
+                        parts_data = parts_resp.json()
+                        if isinstance(parts_data, list):
+                            for p in parts_data:
+                                if isinstance(p, dict):
+                                    part_names[p.get('partId')] = p.get('name', 'Unnamed')
+                    
+                    for box in bbox_data_raw:
+                        if isinstance(box, dict):
+                            part_id = box.get('partId')
+                            box['name'] = part_names.get(part_id, 'Unnamed')
+                            bbox_data.append(box)
+            else:
+                raise HTTPException(500, f"Failed to get bounding boxes")
+            
+            if not bbox_data:
+                return JSONResponse({
+                    "status": "error",
+                    "message": f"No parts found in this {element_type}",
+                    "parts": []
+                })
+            
+            # Process and calculate dimensions
+            parts_preview = []
+            for box in bbox_data:
+                if not isinstance(box, dict):
+                    continue
+                
+                length_x = (box.get('highX', 0) - box.get('lowX', 0)) * 1000
+                length_y = (box.get('highY', 0) - box.get('lowY', 0)) * 1000
+                length_z = (box.get('highZ', 0) - box.get('lowZ', 0)) * 1000
+                
+                if length_x == 0 and length_y == 0 and length_z == 0:
+                    continue
+                
+                dimensions = sorted([length_x, length_y, length_z], reverse=True)
+                length = dimensions[0]
+                width = dimensions[1]
+                height = dimensions[2]
+                volume = length * width * height
+                
+                parts_preview.append({
+                    'partId': box.get('partId', 'Unknown'),
+                    'name': box.get('name', 'Unnamed'),
+                    'length': f"{length:.2f}",
+                    'width': f"{width:.2f}",
+                    'height': f"{height:.2f}",
+                    'volume': f"{volume:.2f}"
+                })
+            
+            return JSONResponse({
+                "status": "success",
+                "element_type": element_type,
+                "parts_count": len(parts_preview),
+                "parts": parts_preview,
+                "message": f"Found {len(parts_preview)} parts in {element_type}"
+            })
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            return JSONResponse({
+                "status": "error",
+                "message": str(e)[:200],
+                "parts": []
+            }, status_code=500)
 
     @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/create-length-properties")
     async def create_length_properties(did: str, wid: str, eid: str, request: Request, db: Session = Depends(get_db)):
