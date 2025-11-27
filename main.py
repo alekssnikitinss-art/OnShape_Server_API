@@ -481,10 +481,10 @@ def get_html():
             }
             showResult('Loading documents...', 'info');
             try {
-               const finalUrl = '/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/boundingboxes?user_id=' + userId;
-                    console.log('Mēģinu izsaukt URL:', finalUrl); // Pārbaudiet šo konsolē!
-            // ... tad seko:
-                const r = await fetch(finalUrl);
+                const r = await fetch('/api/documents?user_id=' + userId);
+                const data = await r.json();
+                currentData = data;
+                displayDocuments(data);
             } catch (e) {
                 showResult('Error: ' + e.message, 'error');
             }
@@ -1185,102 +1185,134 @@ else:
             config_resp = requests.get(config_url, headers={"Authorization": f"Bearer {token}"})
             
             if config_resp.status_code == 200:
-                config_data = config_resp.json()
-                # Extract configuration parameters
-                if 'configurationParameters' in config_data:
-                    for param in config_data.get('configurationParameters', []):
-                        param_type = param.get('parameterType')
-                        if param_type in ['BTMConfigurationParameterQuantity', 'BTMConfigurationParameterString', 'BTMConfigurationParameterNumber']:
-                            variables.append({
-                                'name': param.get('message', {}).get('parameterName', param.get('parameterId', 'Unknown')),
-                                'value': str(param.get('message', {}).get('defaultValue', '')),
-                                'unit': param.get('message', {}).get('units', ''),
-                                'partId': 'Configuration',
-                                'partName': 'Config Parameter'
-                            })
+                try:
+                    config_data = config_resp.json()
+                    if isinstance(config_data, dict) and 'configurationParameters' in config_data:
+                        for param in config_data.get('configurationParameters', []):
+                            if not isinstance(param, dict):
+                                continue
+                            param_type = param.get('parameterType', '')
+                            if 'Quantity' in param_type or 'String' in param_type or 'Number' in param_type:
+                                msg = param.get('message', {})
+                                if isinstance(msg, dict):
+                                    variables.append({
+                                        'name': msg.get('parameterName', param.get('parameterId', 'Unknown')),
+                                        'value': str(msg.get('defaultValue', '')),
+                                        'unit': msg.get('units', ''),
+                                        'partId': 'Configuration',
+                                        'partName': 'Config Parameter'
+                                    })
+                except:
+                    pass
             
             # Method 2: Get parts and their properties
             parts_url = f"https://cad.onshape.com/api/parts/d/{did}/w/{wid}/e/{eid}"
             parts_resp = requests.get(parts_url, headers={"Authorization": f"Bearer {token}"})
             
             if parts_resp.status_code == 200:
-                parts_data = parts_resp.json()
-                
-                for part in parts_data:
-                    part_id = part.get('partId')
-                    part_name = part.get('name', 'Unknown')
-                    
-                    if not part_id:
-                        continue
-                    
-                    # Get bounding box for this part (as backup "variables")
-                    if 'bodyType' in part and part['bodyType'] == 'solid':
-                        # Try metadata first
-                        try:
-                            meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
-                            meta_resp = requests.get(meta_url, headers={"Authorization": f"Bearer {token}"})
+                try:
+                    parts_data = parts_resp.json()
+                    if isinstance(parts_data, list):
+                        for part in parts_data:
+                            if not isinstance(part, dict):
+                                continue
+                            part_id = part.get('partId')
+                            part_name = part.get('name', 'Unknown')
                             
-                            if meta_resp.status_code == 200:
-                                metadata = meta_resp.json()
-                                if isinstance(metadata, dict) and 'properties' in metadata:
-                                    for prop in metadata.get('properties', []):
-                                        prop_name = prop.get('name', '')
-                                        if prop_name and (prop_name.startswith('#') or 'length' in prop_name.lower() or 'width' in prop_name.lower() or 'height' in prop_name.lower()):
-                                            variables.append({
-                                                'name': prop_name,
-                                                'value': str(prop.get('value', '')),
-                                                'unit': prop.get('units', ''),
-                                                'partId': part_id,
-                                                'partName': part_name
-                                            })
-                        except Exception:
-                            pass
+                            if not part_id:
+                                continue
+                            
+                            try:
+                                meta_url = f"https://cad.onshape.com/api/metadata/d/{did}/w/{wid}/e/{eid}/p/{part_id}"
+                                meta_resp = requests.get(meta_url, headers={"Authorization": f"Bearer {token}"})
+                                
+                                if meta_resp.status_code == 200:
+                                    metadata = meta_resp.json()
+                                    if isinstance(metadata, dict) and 'properties' in metadata:
+                                        props = metadata.get('properties', [])
+                                        if isinstance(props, list):
+                                            for prop in props:
+                                                if not isinstance(prop, dict):
+                                                    continue
+                                                prop_name = prop.get('name', '')
+                                                if prop_name and (prop_name.startswith('#') or 'length' in prop_name.lower() or 'width' in prop_name.lower() or 'height' in prop_name.lower()):
+                                                    variables.append({
+                                                        'name': prop_name,
+                                                        'value': str(prop.get('value', '')),
+                                                        'unit': prop.get('units', ''),
+                                                        'partId': part_id,
+                                                        'partName': part_name
+                                                    })
+                            except:
+                                pass
+                except:
+                    pass
             
             # Method 3: Get features (variables)
             features_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/features"
             features_resp = requests.get(features_url, headers={"Authorization": f"Bearer {token}"})
             
             if features_resp.status_code == 200:
-                features_data = features_resp.json()
-                if isinstance(features_data, dict) and 'features' in features_data:
-                    for feature in features_data.get('features', []):
-                        feature_type = feature.get('message', {}).get('featureType', '')
-                        if 'variable' in feature_type.lower():
-                            params = feature.get('message', {}).get('parameters', [])
-                            for param in params:
-                                var_name = param.get('message', {}).get('variableName') or param.get('variableName')
-                                if var_name:
-                                    variables.append({
-                                        'name': var_name,
-                                        'value': param.get('message', {}).get('expression') or param.get('expression', ''),
-                                        'unit': '',
-                                        'featureId': feature.get('featureId', ''),
-                                        'partId': 'Variable Feature'
-                                    })
+                try:
+                    features_data = features_resp.json()
+                    if isinstance(features_data, dict) and 'features' in features_data:
+                        for feature in features_data.get('features', []):
+                            if not isinstance(feature, dict):
+                                continue
+                            msg = feature.get('message', {})
+                            if not isinstance(msg, dict):
+                                continue
+                            feature_type = msg.get('featureType', '')
+                            if 'variable' in feature_type.lower():
+                                params = msg.get('parameters', [])
+                                if isinstance(params, list):
+                                    for param in params:
+                                        if not isinstance(param, dict):
+                                            continue
+                                        param_msg = param.get('message', {})
+                                        if isinstance(param_msg, dict):
+                                            var_name = param_msg.get('variableName') or param.get('variableName')
+                                            if var_name:
+                                                variables.append({
+                                                    'name': var_name,
+                                                    'value': param_msg.get('expression', param.get('expression', '')),
+                                                    'unit': '',
+                                                    'featureId': feature.get('featureId', ''),
+                                                    'partId': 'Variable Feature'
+                                                })
+                except:
+                    pass
             
             # Method 4: If still nothing, use bounding boxes as fallback
             if len(variables) == 0:
-                bbox_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
-                bbox_resp = requests.get(bbox_url, headers={"Authorization": f"Bearer {token}"})
-                
-                if bbox_resp.status_code == 200:
-                    bbox_data = bbox_resp.json()
-                    for box in bbox_data:
-                        length_x = (box.get('highX', 0) - box.get('lowX', 0)) * 1000
-                        length_y = (box.get('highY', 0) - box.get('lowY', 0)) * 1000
-                        length_z = (box.get('highZ', 0) - box.get('lowZ', 0)) * 1000
-                        
-                        part_id = box.get('partId', 'Unknown')
-                        
-                        variables.append({'name': 'BBox_Length', 'value': f"{max(length_x, length_y, length_z):.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
-                        variables.append({'name': 'BBox_Width', 'value': f"{sorted([length_x, length_y, length_z])[1]:.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
-                        variables.append({'name': 'BBox_Height', 'value': f"{min(length_x, length_y, length_z):.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
+                try:
+                    bbox_url = f"https://cad.onshape.com/api/partstudios/d/{did}/w/{wid}/e/{eid}/boundingboxes"
+                    bbox_resp = requests.get(bbox_url, headers={"Authorization": f"Bearer {token}"})
+                    
+                    if bbox_resp.status_code == 200:
+                        bbox_data = bbox_resp.json()
+                        if isinstance(bbox_data, list):
+                            for box in bbox_data:
+                                if not isinstance(box, dict):
+                                    continue
+                                length_x = (box.get('highX', 0) - box.get('lowX', 0)) * 1000
+                                length_y = (box.get('highY', 0) - box.get('lowY', 0)) * 1000
+                                length_z = (box.get('highZ', 0) - box.get('lowZ', 0)) * 1000
+                                
+                                part_id = box.get('partId', 'Unknown')
+                                dimensions = sorted([length_x, length_y, length_z], reverse=True)
+                                
+                                variables.append({'name': 'BBox_Length', 'value': f"{dimensions[0]:.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
+                                variables.append({'name': 'BBox_Width', 'value': f"{dimensions[1]:.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
+                                variables.append({'name': 'BBox_Height', 'value': f"{dimensions[2]:.2f}", 'unit': 'mm', 'partId': part_id, 'partName': 'From BoundingBox'})
+                except:
+                    pass
             
             if len(variables) == 0:
                 return JSONResponse({
                     "variables": [],
                     "count": 0,
-                    "message": "No configuration variables found. Make sure your Part Studio has configuration parameters or variables defined.",
+                    "message": "No configuration variables found. Try using 'Create Length Properties' button instead to automatically create Length/Width/Height from bounding boxes.",
                     "debug": {
                         "config_status": config_resp.status_code if 'config_resp' in locals() else "not_called",
                         "parts_status": parts_resp.status_code if 'parts_resp' in locals() else "not_called",
@@ -1292,10 +1324,10 @@ else:
             
         except Exception as e:
             return JSONResponse({
-                "error": str(e),
+                "error": str(e)[:200],
                 "variables": variables,
                 "count": len(variables),
-                "message": f"Found {len(variables)} variables. Error: {str(e)}"
+                "message": f"Found {len(variables)} variables. Error: {str(e)[:100]}"
             }, status_code=200)
 
     @app.post("/api/partstudios/{did}/w/{wid}/e/{eid}/create-length-properties")
