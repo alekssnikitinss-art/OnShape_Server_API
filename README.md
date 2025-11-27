@@ -40,9 +40,10 @@ Status Code: 400_". Also it is able to check API working statuss.
   New files were added, for modifying and adding structure to the API and whole Server. For easier and faster working server.  
   Tried to change ReDircet URL's in OnShape dev portal, soo the API can Trust my source and allow me to acces part and assemblies, property values and edit them, also makde function for pushing values back working. The change didn't help fixing the issue, made the website blank. AT 11:41AM website is able to respond correctly. Login button isnt getting the right Redircet option (Possible mistake in OnShapes Dev portal). Gemini chat gave possible soulutions for a fix. First replaceble part didnt. Check and compared URL's everything seems to be correct, no typos seen.  
   I connected VsCode with my GitHub, for better coding and manegment, for further coding. Better and easeir to code and overview code, better to compare and update, edit it.   
-  (12:05PM) Fixed the issue with login redirect. Still failed to get variables from config.
+  (12:05PM) Fixed the issue with login redirect. Still failed to get variables from config.  
+  (02.28PM) Decied to try access data base, too see if any values get or dont get saved there. No luck currently using, DBeaver, while trying to run the data base in there, but there was an syntax errors. There is a possiblity, that I might not, be able to accces it, because of a PayWall by render.com. There is also a possiblity that it might work in VsCode. 
 
-
+    
 
 
                This page is created for a issue with OnShape seen in company named - Mechanika Engineering.  
