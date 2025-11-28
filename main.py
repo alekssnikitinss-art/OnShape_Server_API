@@ -658,26 +658,49 @@ def get_html():
             if (!confirm('Create Length, Width, Height properties from bounding boxes? This will add custom properties to all parts in OnShape.')) {
                 return;
             }
+            
+            console.log('=== CREATE PROPERTIES DEBUG START ===');
+            console.log('Document ID:', did);
+            console.log('Workspace ID:', wid);
+            console.log('Element ID:', eid);
+            console.log('User ID:', userId);
+            
             showResult('Creating length properties from bounding boxes...', 'info');
+            
             try {
-                const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/create-length-properties', {
+                const url = '/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/create-length-properties';
+                console.log('Posting to URL:', url);
+                
+                const r = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId })
                 });
+                
+                console.log('Response status:', r.status);
+                console.log('Response OK:', r.ok);
+                
                 if (r.ok) {
                     const result = await r.json();
+                    console.log('Response data:', result);
+                    console.log('=== CREATE PROPERTIES DEBUG END ===');
+                    
                     let msg = result.message;
                     if (result.errors && result.errors.length > 0) {
                         msg += '<br><br><strong>Errors:</strong><br>' + result.errors.slice(0, 5).join('<br>');
+                        console.log('Errors found:', result.errors);
                     }
                     showResult(msg, result.status === 'success' ? 'success' : 'error');
                 } else {
                     const error = await r.text();
+                    console.error('Request failed:', error);
+                    console.log('=== CREATE PROPERTIES DEBUG END ===');
                     showResult('Failed: ' + error, 'error');
                 }
             } catch (e) {
-                showResult('Error: ' + e.message, 'error');
+                console.error('Create error:', e);
+                console.log('=== CREATE PROPERTIES DEBUG END ===');
+                showResult('Error: ' + e.message + ' - Check console for details', 'error');
             }
         }
         
@@ -693,17 +716,35 @@ def get_html():
                 showResult('Please fill all fields', 'error');
                 return;
             }
+            
+            console.log('=== PREVIEW DEBUG START ===');
+            console.log('Document ID:', did);
+            console.log('Workspace ID:', wid);
+            console.log('Element ID:', eid);
+            console.log('User ID:', userId);
+            
             showResult('Loading length properties preview...', 'info');
+            
             try {
-                const r = await fetch('/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/preview-length-properties?user_id=' + userId);
+                const url = '/api/partstudios/' + did + '/w/' + wid + '/e/' + eid + '/preview-length-properties?user_id=' + userId;
+                console.log('Fetching URL:', url);
+                
+                const r = await fetch(url);
+                console.log('Response status:', r.status);
+                console.log('Response OK:', r.ok);
+                
                 const result = await r.json();
+                console.log('Response data:', result);
+                console.log('=== PREVIEW DEBUG END ===');
+                
                 if (result.status === 'success' || result.parts) {
                     displayLengthPreview(result);
                 } else {
-                    showResult(result.message || 'Failed to load preview', 'error');
+                    showResult(result.message || 'Failed to load preview. Check console for details.', 'error');
                 }
             } catch (e) {
-                showResult('Error: ' + e.message, 'error');
+                console.error('Preview error:', e);
+                showResult('Error: ' + e.message + ' - Check console for details', 'error');
             }
         }
         
