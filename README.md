@@ -42,6 +42,9 @@ Status Code: 400_". Also it is able to check API working statuss.
   I connected VsCode with my GitHub, for better coding and manegment, for further coding. Better and easeir to code and overview code, better to compare and update, edit it.   
   (12:05PM) Fixed the issue with login redirect. Still failed to get variables from config.  
   (02.28PM) Decied to try access data base, too see if any values get or dont get saved there. No luck currently using, DBeaver, while trying to run the data base in there, but there was an syntax errors. There is a possiblity, that I might not, be able to accces it, because of a PayWall by render.com. There is also a possiblity that it might work in VsCode. 
+  (28.11.2025) I added another branch for the Main one, for code testing and I cleared out the Main one for the corrected and new code. Made notes for possible soulutions for problems with value Fetching/Pushing and Pulling, since its still not fixed.  
+  (01:38PM) Tested and check if data based encrypton key is working correctly, both for DataBase and server access, it work great. Other suspition is that the PLAN for OnShape, that is being used - FREE PLAN, might limit what data or freatures does it allow to use. At the same time, sources say that it dosent impact anything. Watched youtube tutorails, for BOM and property meangemnt, there was nothing usefull, in regards for FS language, still unsuccesful, to make anything work in it, at the same time, there is no really reliable, sources for it and how to use it.   
+  The code cant detect an objects Length, Wigth or Volume, e.t.c, even tho the code dosent make any errors, the surface is solid, element and part is not transparent, eveything for a normal of sucesseful detetion work proprely, but the API or even OnShapes API, just dosent seem to find or locate data. Idea is that the metadata is blocked, because, I cant even see those values in console while checking sources. 
 
     
 
