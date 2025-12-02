@@ -1,8 +1,7 @@
-flask
-requests
-python-dotenv
-sqlalchemy
-cryptography
-gunicorn
-fastapi
-uvicorn[standard]
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+sqlalchemy==2.0.23
+cryptography==41.0.7
+requests==2.31.0
+python-dotenv==1.0.0
+pydantic-settings==2.0.3
