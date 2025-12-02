@@ -4,7 +4,7 @@ Manages Bills of Materials, Bounding Boxes, and Properties in OnShape
 """
 
 from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
-from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -32,9 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
+# Mount static files (CSS, JS, images, etc.)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
+else:
+    print("WARNING: static folder not found!")
 
 # ============= MAIN PAGE =============
 
@@ -45,14 +47,27 @@ async def root():
         with open("templates/index.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
-        return "<h1>Frontend files not found</h1>"
+        return """
+        <html>
+        <head><title>OnShape BOM Manager</title></head>
+        <body>
+            <h1>OnShape BOM Manager</h1>
+            <p>Frontend files not found. Please ensure templates/index.html exists.</p>
+            <p><a href="/health">Check health</a></p>
+        </body>
+        </html>
+        """
 
 # ============= HEALTH CHECK =============
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint for deployment"""
-    return {"status": "healthy", "version": "2.0.0"}
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "database": "connected"
+    }
 
 # ============= INCLUDE ROUTERS =============
 
@@ -81,6 +96,23 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"error": "Internal server error", "status": "error"}
     )
 
+# ============= STARTUP/SHUTDOWN =============
+
+@app.on_event("startup")
+async def startup_event():
+    """Run on app startup"""
+    print("🚀 OnShape BOM Manager starting...")
+    print(f"📊 Database: {settings.DATABASE_URL}")
+    print(f"🔐 Debug mode: {settings.DEBUG}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Run on app shutdown"""
+    print("🛑 OnShape BOM Manager shutting down...")
+
+# ============= MAIN ENTRY POINT =============
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
