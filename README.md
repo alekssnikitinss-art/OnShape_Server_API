@@ -37,7 +37,8 @@ Status Code: 400_". Also it is able to check API working statuss.
   (28.11.2025) I added another branch for the Main one, for code testing and I cleared out the Main one for the corrected and new code. Made notes for possible soulutions for problems with value Fetching/Pushing and Pulling, since its still not fixed.  
   (01:38PM) Tested and check if data based encrypton key is working correctly, both for DataBase and server access, it work great. Other suspition is that the PLAN for OnShape, that is being used - FREE PLAN, might limit what data or freatures does it allow to use. At the same time, sources say that it dosent impact anything. Watched youtube tutorails, for BOM and property meangemnt, there was nothing usefull, in regards for FS language, still unsuccesful, to make anything work in it, at the same time, there is no really reliable, sources for it and how to use it.   
   The code cant detect an objects Length, Wigth or Volume, e.t.c, even tho the code dosent make any errors, the surface is solid, element and part is not transparent, eveything for a normal of sucesseful detetion work proprely, but the API or even OnShapes API, just dosent seem to find or locate data. Idea is that the metadata is blocked, because, I cant even see those values in console while checking sources.   
-  (02.12.2025) Transfered files succsesfully, with a lot if time, reactivated server and its online now. The only thing that is causing problems is that there is problems with Redirect from onshapes side.
+  (02.12.2025) Transfered files succsesfully, with a lot if time, reactivated server and its online now. The only thing that is causing problems is that there is problems with Redirect from onshapes side.  
+  (03.12.2025) Fixed errors with auth, now its possible to log in, changed the data base, soo it works and saves data diffrently. Now the main focus is on getting properties, pushing back BOM and created custom propteties.
 
     
 
