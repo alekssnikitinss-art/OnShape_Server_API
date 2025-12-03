@@ -30,6 +30,8 @@ class AuthService:
     @staticmethod
     def get_oauth_url(state: str = "state123") -> str:
         """Get OAuth URL"""
+        from urllib.parse import urlencode
+        
         params = {
             "response_type": "code",
             "client_id": settings.ONSHAPE_CLIENT_ID,
@@ -37,9 +39,11 @@ class AuthService:
             "scope": settings.ONSHAPE_SCOPE,
             "state": state
         }
-        from urllib.parse import urlencode
+        
         url = settings.ONSHAPE_AUTH_URL + "?" + urlencode(params)
         print(f"🔐 OAuth URL: {url}")
+        print(f"   Client ID: {settings.ONSHAPE_CLIENT_ID[:10]}...")
+        print(f"   Redirect URI: {settings.ONSHAPE_REDIRECT_URI}")
         return url
     
     @staticmethod
