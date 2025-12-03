@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # OnShape OAuth
     ONSHAPE_CLIENT_ID: str = os.getenv("ONSHAPE_CLIENT_ID", "")
     ONSHAPE_CLIENT_SECRET: str = os.getenv("ONSHAPE_CLIENT_SECRET", "")
-    ONSHAPE_REDIRECT_URI: str = os.getenv("ONSHAPE_REDIRECT_URI", "http://localhost:8000/auth/callback")
+    ONSHAPE_REDIRECT_URI: str = os.getenv("ONSHAPE_REDIRECT_URI", "redirect_uri=https://onshape-server-api.onrender.com/auth/callback")
     
     # Encryption
     ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
