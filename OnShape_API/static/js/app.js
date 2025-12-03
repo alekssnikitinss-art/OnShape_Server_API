@@ -40,6 +40,7 @@ function bindButtonEvents() {
     // BOM & Properties
     document.getElementById('getBomBtn').onclick = getBOM;
     document.getElementById('getBboxBtn').onclick = getBoundingBoxes;
+    document.getElementById('getVarsBtn').onclick = getConfigurationVariables;
     document.getElementById('createLengthPropsBtn').onclick = createLengthProperties;
     document.getElementById('pushBomBtn').onclick = pushBOMToOnShape;
     
@@ -71,7 +72,7 @@ function loadDoc(did, wid, eid) {
     document.getElementById('documentId').value = did;
     document.getElementById('workspaceId').value = wid || '';
     document.getElementById('elementId').value = eid || '';
-    showResult('✅ Document loaded! Click Get BOM or Get Bounding Boxes to fetch data.', 'success');
+    showResult('✅ Document loaded! Click Get BOM, Get Bounding Boxes, or Get Variables to fetch data.', 'success');
 }
 
 function clearData() {
