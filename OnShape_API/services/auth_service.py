@@ -1,3 +1,7 @@
+"""
+Authentication Service
+"""
+
 from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 import base64
@@ -34,11 +38,18 @@ class AuthService:
             "state": state
         }
         from urllib.parse import urlencode
-        return settings.ONSHAPE_AUTH_URL + "?" + urlencode(params)
+        url = settings.ONSHAPE_AUTH_URL + "?" + urlencode(params)
+        print(f"🔐 OAuth URL: {url}")
+        return url
     
     @staticmethod
     def exchange_code_for_token(code: str) -> dict:
         """Exchange authorization code for tokens"""
+        print(f"🔄 Exchanging code for token...")
+        print(f"   Client ID: {settings.ONSHAPE_CLIENT_ID[:10]}...")
+        print(f"   Token URL: {settings.ONSHAPE_TOKEN_URL}")
+        print(f"   Redirect URI: {settings.ONSHAPE_REDIRECT_URI}")
+        
         auth_header = base64.b64encode(
             f"{settings.ONSHAPE_CLIENT_ID}:{settings.ONSHAPE_CLIENT_SECRET}".encode()
         ).decode()
@@ -54,28 +65,59 @@ class AuthService:
             "redirect_uri": settings.ONSHAPE_REDIRECT_URI
         }
         
-        response = requests.post(settings.ONSHAPE_TOKEN_URL, headers=headers, data=data, timeout=10)
-        if response.status_code != 200:
-            raise Exception(f"Token exchange failed: {response.text}")
-        
-        return response.json()
+        try:
+            response = requests.post(
+                settings.ONSHAPE_TOKEN_URL, 
+                headers=headers, 
+                data=data, 
+                timeout=10
+            )
+            
+            print(f"   Response Status: {response.status_code}")
+            print(f"   Response Body: {response.text[:200]}")
+            
+            if response.status_code != 200:
+                print(f"❌ Token exchange failed!")
+                raise Exception(f"Token exchange failed: {response.text}")
+            
+            result = response.json()
+            print(f"✅ Token received successfully!")
+            return result
+            
+        except Exception as e:
+            print(f"❌ Error during token exchange: {str(e)}")
+            raise Exception(f"Token exchange failed: {str(e)}")
     
     @staticmethod
     def get_user_info(access_token: str) -> dict:
         """Get user info from OnShape"""
-        response = requests.get(
-            f"{settings.ONSHAPE_API_URL}/users/session",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10
-        )
-        if response.status_code != 200:
-            raise Exception(f"Failed to get user info: {response.text}")
+        print(f"👤 Getting user info...")
         
-        return response.json()
+        try:
+            response = requests.get(
+                f"{settings.ONSHAPE_API_URL}/users/session",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10
+            )
+            
+            print(f"   Response Status: {response.status_code}")
+            
+            if response.status_code != 200:
+                raise Exception(f"Failed to get user info: {response.text}")
+            
+            result = response.json()
+            print(f"✅ User info received!")
+            return result
+            
+        except Exception as e:
+            print(f"❌ Error getting user info: {str(e)}")
+            raise Exception(f"Failed to get user info: {str(e)}")
     
     @staticmethod
     def save_user(db: Session, onshape_id: str, email: str, name: str, token_data: dict) -> User:
         """Save or update user in database"""
+        print(f"💾 Saving user: {email}")
+        
         user = db.query(User).filter(User.onshape_id == onshape_id).first()
         
         access_token = token_data.get("access_token")
@@ -83,6 +125,7 @@ class AuthService:
         expires_in = token_data.get("expires_in", 3600)
         
         if user:
+            print(f"   Updating existing user...")
             user.email = email
             user.name = name
             user.access_token = AuthService.encrypt_token(access_token)
@@ -90,6 +133,7 @@ class AuthService:
             user.token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
             user.last_login = datetime.utcnow()
         else:
+            print(f"   Creating new user...")
             user = User(
                 onshape_id=onshape_id,
                 email=email,
@@ -102,6 +146,7 @@ class AuthService:
         
         db.commit()
         db.refresh(user)
+        print(f"✅ User saved successfully!")
         return user
     
     @staticmethod
