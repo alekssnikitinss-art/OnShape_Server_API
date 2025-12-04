@@ -1,4 +1,4 @@
-"""Properties Routes - Variables & Bounding Boxes"""
+"""Properties Routes - Variables & Bounding Boxes with Better Debugging"""
 
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ from services.auth_service import AuthService
 from services.onshape_service import OnShapeService
 from services.bom_service import BOMService
 import logging
+import traceback
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,30 +28,53 @@ async def get_bounding_boxes(
         
         logger.info(f"📏 Getting bounding boxes: element={element_id[:8]}")
         
-        token = AuthService.get_valid_token(db, user_id)
-        service = OnShapeService(token)
-        
-        # Get bounding boxes
         try:
-            bboxes = service.get_bounding_boxes(doc_id, workspace_id, element_id)
+            token = AuthService.get_valid_token(db, user_id)
         except Exception as e:
-            logger.warning(f"⚠️ Could not get bounding boxes: {str(e)}")
-            # This element might be an Assembly, not PartStudio
-            raise HTTPException(400, f"Could not get bounding boxes. This endpoint works with PartStudios only. Error: {str(e)[:100]}")
+            logger.error(f"❌ Token error: {str(e)}")
+            raise HTTPException(401, f"Token error: {str(e)}")
         
-        # Calculate dimensions
+        try:
+            service = OnShapeService(token)
+            logger.info(f"🔄 Calling OnShape API...")
+            bboxes = service.get_bounding_boxes(doc_id, workspace_id, element_id)
+            logger.info(f"📊 Raw response type: {type(bboxes)}, content: {str(bboxes)[:200]}")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ OnShape API error: {error_msg}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            raise HTTPException(400, f"OnShape API error: {error_msg}")
+        
+        if not bboxes:
+            logger.warning("⚠️ Empty bboxes response from OnShape")
+            raise HTTPException(400, "No bounding boxes found. This might be an Assembly (not PartStudio) or empty element.")
+        
+        logger.info(f"✅ Got {len(bboxes) if isinstance(bboxes, list) else '?'} bboxes from OnShape")
+        
+        # Process each bounding box
         processed = []
-        for bbox in bboxes:
+        for idx, bbox in enumerate(bboxes):
             try:
-                dimensions = BOMService.calculate_dimensions(bbox)
-                bbox["dimensions"] = dimensions
-                processed.append(bbox)
+                logger.info(f"📝 Processing bbox {idx+1}: {str(bbox)[:100]}")
+                
+                # Safely calculate dimensions
+                if isinstance(bbox, dict):
+                    dimensions = BOMService.calculate_dimensions(bbox)
+                    bbox["dimensions"] = dimensions
+                    processed.append(bbox)
+                    logger.info(f"✅ Bbox {idx+1}: L={dimensions['length']}, W={dimensions['width']}, H={dimensions['height']}")
+                else:
+                    logger.warning(f"⚠️ Bbox {idx+1} is not a dict: {type(bbox)}")
+                    
             except Exception as e:
-                logger.warning(f"Could not calculate dimensions: {str(e)}")
-                bbox["dimensions"] = {"length": 0, "width": 0, "height": 0, "volume": 0}
-                processed.append(bbox)
+                logger.warning(f"⚠️ Could not process bbox {idx+1}: {str(e)}")
+                try:
+                    bbox["dimensions"] = {"length": 0, "width": 0, "height": 0, "volume": 0}
+                    processed.append(bbox)
+                except:
+                    pass
         
-        logger.info(f"✅ Retrieved {len(processed)} bounding boxes")
+        logger.info(f"✅ Successfully processed {len(processed)} bounding boxes")
         
         return {
             "status": "success",
@@ -60,10 +84,13 @@ async def get_bounding_boxes(
         }
     
     except HTTPException as e:
+        logger.error(f"HTTP {e.status_code}: {e.detail}")
         raise e
     except Exception as e:
-        logger.error(f"❌ Bounding boxes error: {str(e)}")
-        raise HTTPException(500, str(e))
+        error_msg = str(e)
+        logger.error(f"❌ Unexpected error: {error_msg}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(500, f"Unexpected error: {error_msg[:100]}")
 
 
 @router.get("/configuration")
@@ -82,17 +109,23 @@ async def get_configuration_variables(
         
         logger.info(f"📋 Getting configuration variables: element={element_id[:8]}")
         
-        token = AuthService.get_valid_token(db, user_id)
-        service = OnShapeService(token)
-        
-        # Get configuration
         try:
-            config_data = service.get_configuration_variables(doc_id, workspace_id, element_id)
+            token = AuthService.get_valid_token(db, user_id)
         except Exception as e:
-            logger.warning(f"⚠️ Could not get variables: {str(e)}")
+            logger.error(f"❌ Token error: {str(e)}")
+            raise HTTPException(401, f"Token error: {str(e)}")
+        
+        try:
+            service = OnShapeService(token)
+            logger.info(f"🔄 Calling OnShape API for variables...")
+            config_data = service.get_configuration_variables(doc_id, workspace_id, element_id)
+            logger.info(f"📊 Raw response type: {type(config_data)}")
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"⚠️ OnShape API returned error (may be normal): {error_msg}")
             return {
-                "status": "error",
-                "message": f"This element may not have configuration variables or the feature is not available. Error: {str(e)[:100]}",
+                "status": "info",
+                "message": f"No configuration variables found or feature not supported. Error: {error_msg[:100]}",
                 "data": None
             }
         
@@ -121,8 +154,10 @@ async def get_configuration_variables(
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"❌ Configuration error: {str(e)}")
-        raise HTTPException(500, str(e))
+        error_msg = str(e)
+        logger.error(f"❌ Configuration error: {error_msg}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(500, f"Unexpected error: {error_msg[:100]}")
 
 
 @router.post("/create-length-properties")
@@ -144,19 +179,25 @@ async def create_length_properties(
         
         logger.info(f"📐 Creating length properties: element={element_id[:8]}")
         
-        token = AuthService.get_valid_token(db, user_id)
-        service = OnShapeService(token)
-        
-        # Get bounding boxes
         try:
+            token = AuthService.get_valid_token(db, user_id)
+        except Exception as e:
+            logger.error(f"❌ Token error: {str(e)}")
+            raise HTTPException(401, f"Token error: {str(e)}")
+        
+        try:
+            service = OnShapeService(token)
+            logger.info(f"🔄 Getting bounding boxes...")
             bboxes = service.get_bounding_boxes(doc_id, workspace_id, element_id)
         except Exception as e:
-            logger.error(f"❌ Could not get bounding boxes: {str(e)}")
+            logger.error(f"❌ Bounding boxes error: {str(e)}")
             raise HTTPException(400, f"Failed to get bounding boxes: {str(e)[:100]}")
         
         if not bboxes:
             logger.warning("⚠️ No bounding boxes found")
             raise HTTPException(400, "No parts found in this PartStudio")
+        
+        logger.info(f"📊 Found {len(bboxes)} parts to process")
         
         updated_count = 0
         errors = []
@@ -166,32 +207,34 @@ async def create_length_properties(
             try:
                 part_id = bbox.get("partId")
                 if not part_id:
-                    logger.warning(f"⚠️ Bbox {idx} has no partId")
+                    logger.warning(f"⚠️ Part {idx+1} has no partId")
                     continue
                 
                 # Calculate dimensions
+                logger.info(f"📝 Part {idx+1}/{len(bboxes)}: Calculating dimensions...")
                 dimensions = BOMService.calculate_dimensions(bbox)
-                logger.info(f"📝 Part {idx+1}: Length={dimensions['length']}, Width={dimensions['width']}, Height={dimensions['height']}")
+                logger.info(f"✅ Dimensions: L={dimensions['length']}, W={dimensions['width']}, H={dimensions['height']}")
                 
                 # Create property objects
                 properties = BOMService.create_property_objects(dimensions)
+                logger.info(f"📤 Updating metadata for part {part_id[:12]}")
                 
                 # Update metadata
                 try:
                     service.update_metadata(doc_id, workspace_id, element_id, part_id, properties)
                     updated_count += 1
-                    logger.info(f"✅ Updated part {idx+1}: {part_id[:12]}")
+                    logger.info(f"✅ Updated part {idx+1}")
                 except Exception as e:
                     error_msg = f"Part {part_id[:8]}: {str(e)[:50]}"
                     errors.append(error_msg)
                     logger.warning(f"⚠️ {error_msg}")
             
             except Exception as e:
-                error_msg = f"Bbox {idx}: {str(e)[:50]}"
+                error_msg = f"Part {idx}: {str(e)[:50]}"
                 errors.append(error_msg)
                 logger.warning(f"⚠️ {error_msg}")
         
-        logger.info(f"✅ Length properties complete: {updated_count}/{len(bboxes)} success")
+        logger.info(f"✅ Length properties complete: {updated_count}/{len(bboxes)} success, {len(errors)} errors")
         
         return {
             "status": "success" if updated_count > 0 else "partial",
@@ -204,8 +247,10 @@ async def create_length_properties(
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"❌ Create length properties error: {str(e)}")
-        raise HTTPException(500, str(e))
+        error_msg = str(e)
+        logger.error(f"❌ Create length properties error: {error_msg}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(500, f"Unexpected error: {error_msg[:100]}")
 
 
 @router.get("/health")
