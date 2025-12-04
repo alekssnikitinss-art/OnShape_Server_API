@@ -20,7 +20,7 @@ async def fetch_bom(
     indented: bool = Query(False),
     db: Session = Depends(get_db)
 ):
-    """Fetch BOM from OnShape"""
+    """Fetch BOM from OnShape - handles both Assemblies and PartStudios"""
     try:
         if not all([doc_id, workspace_id, element_id, user_id]):
             logger.error("Missing BOM parameters")
@@ -30,9 +30,13 @@ async def fetch_bom(
         
         token = AuthService.get_valid_token(db, user_id)
         service = OnShapeService(token)
+        
+        # This will try Assembly first, then PartStudio
         bom_data = service.get_bom(doc_id, workspace_id, element_id, indented=indented)
         
-        # Process BOM items
+        logger.info(f"📊 BOM data type: {bom_data.get('type', 'Assembly')}")
+        
+        # Process BOM items if they exist
         if "bomTable" in bom_data and "items" in bom_data["bomTable"]:
             item_count = len(bom_data["bomTable"]["items"])
             bom_data["bomTable"]["items"] = BOMService.process_bom_items(
@@ -43,14 +47,14 @@ async def fetch_bom(
         return {
             "status": "success",
             "data": bom_data,
-            "message": "BOM fetched successfully"
+            "message": f"BOM fetched successfully ({bom_data.get('type', 'Assembly')})"
         }
     
     except HTTPException as e:
         raise e
     except Exception as e:
         logger.error(f"❌ BOM fetch error: {str(e)}")
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"BOM fetch failed: {str(e)[:100]}")
 
 
 @router.post("/push")

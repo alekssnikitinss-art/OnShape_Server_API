@@ -70,15 +70,17 @@ class BOMService:
                     logger.warning(f"⚠️ BOM item is not a dict: {type(item)}")
                     continue
                 
+                # Handle both Assembly BOM and PartStudio parts formats
                 processed.append({
-                    "item": item.get("item", "-"),
-                    "partNumber": item.get("partNumber", item.get("PART_NUMBER", "-")),
+                    "item": item.get("item", item.get("itemNumber", "-")),
+                    "partNumber": item.get("partNumber", item.get("PART_NUMBER", item.get("part_number", "-"))),
                     "name": item.get("name", item.get("NAME", "-")),
-                    "quantity": item.get("quantity", item.get("QUANTITY", "-")),
-                    "description": item.get("description", item.get("DESCRIPTION", "-")),
+                    "quantity": item.get("quantity", item.get("QUANTITY", 1)),
+                    "description": item.get("description", item.get("DESCRIPTION", "")),
                     "indentLevel": item.get("indentLevel", 0),
                     "hasChildren": item.get("hasChildren", False),
-                    "parentId": item.get("parentId", None)
+                    "parentId": item.get("parentId", None),
+                    "partId": item.get("partId", item.get("id", None))
                 })
             
             logger.info(f"✅ Processed {len(processed)} BOM items")
