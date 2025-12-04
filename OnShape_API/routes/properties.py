@@ -119,36 +119,48 @@ async def get_configuration_variables(
             service = OnShapeService(token)
             logger.info(f"🔄 Calling OnShape API for variables...")
             config_data = service.get_configuration_variables(doc_id, workspace_id, element_id)
-            logger.info(f"📊 Raw response type: {type(config_data)}")
+            logger.info(f"📊 Raw response: {config_data}")
         except Exception as e:
             error_msg = str(e)
-            logger.warning(f"⚠️ OnShape API returned error (may be normal): {error_msg}")
+            logger.warning(f"⚠️ OnShape API error: {error_msg}")
+            # Configuration might not exist - return empty but valid response
             return {
                 "status": "info",
-                "message": f"No configuration variables found or feature not supported. Error: {error_msg[:100]}",
-                "data": None
+                "message": "No configuration variables found. This element may not have parametric features.",
+                "data": None,
+                "variables": [],
+                "count": 0
             }
         
-        # Process variables if they exist
+        # Process variables - handle different formats
         variables = []
         if isinstance(config_data, dict):
+            logger.info(f"Config is dict with keys: {config_data.keys()}")
             if "parameters" in config_data:
                 variables = config_data.get("parameters", [])
+                logger.info(f"Found {len(variables)} in 'parameters'")
             elif "variables" in config_data:
                 variables = config_data.get("variables", [])
-            elif isinstance(config_data, list):
+                logger.info(f"Found {len(variables)} in 'variables'")
+            elif "items" in config_data:
+                variables = config_data.get("items", [])
+                logger.info(f"Found {len(variables)} in 'items'")
+            else:
+                # Entire response might be the variables
                 variables = config_data
+                logger.info(f"Returning entire dict as variables")
         elif isinstance(config_data, list):
             variables = config_data
+            logger.info(f"Config is list with {len(variables)} items")
         
-        logger.info(f"✅ Retrieved {len(variables)} configuration variables")
+        logger.info(f"✅ Retrieved {len(variables) if isinstance(variables, list) else '?'} configuration variables")
         
         return {
-            "status": "success" if variables else "info",
+            "status": "success" if (isinstance(variables, list) and len(variables) > 0) else "info",
             "data": config_data,
-            "variables": variables,
-            "count": len(variables),
-            "message": f"Retrieved {len(variables)} configuration variables" if variables else "No configuration variables found"
+            "variables": variables if isinstance(variables, list) else [],
+            "count": len(variables) if isinstance(variables, list) else 0,
+            "message": f"Retrieved {len(variables) if isinstance(variables, list) else 0} configuration variables" if isinstance(variables, list) and len(variables) > 0 else "No configuration variables found"
         }
     
     except HTTPException as e:
@@ -157,7 +169,14 @@ async def get_configuration_variables(
         error_msg = str(e)
         logger.error(f"❌ Configuration error: {error_msg}")
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        raise HTTPException(500, f"Unexpected error: {error_msg[:100]}")
+        # Don't crash - return empty response
+        return {
+            "status": "info",
+            "message": f"Could not retrieve configuration: {error_msg[:100]}",
+            "data": None,
+            "variables": [],
+            "count": 0
+        }
 
 
 @router.post("/create-length-properties")

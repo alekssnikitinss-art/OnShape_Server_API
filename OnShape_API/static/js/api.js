@@ -1,6 +1,6 @@
 // API.JS - All API calls with focus on Variables, Push BOM, and Bounding Boxes
 
-const API_TIMEOUT = 15000; // 15 second timeout
+const API_TIMEOUT = 40000; // 40 second timeout for OnShape API slowness
 
 async function loadUserInfo() {
     if (!userId) return;
