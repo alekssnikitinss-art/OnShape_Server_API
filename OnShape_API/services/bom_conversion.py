@@ -1,19 +1,18 @@
 """
-BOM Unit Converter Service
-Converts measurements to MM and calculates volume
-Adds custom columns to BOM
+services/bom_conversion.py - BOM Unit Conversion & Custom Columns Service
+Handles unit conversions and allows custom columns for BOM
 """
 
+from typing import List, Dict, Any
 import logging
-from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
-class UnitConverter:
-    """Convert units to millimeters"""
+class BOMConversionService:
+    """Service for converting units and managing custom BOM columns"""
     
     # Conversion factors to MM
-    CONVERSIONS = {
+    CONVERSION_FACTORS = {
         "mm": 1.0,
         "millimeter": 1.0,
         "millimeters": 1.0,
@@ -26,313 +25,248 @@ class UnitConverter:
         "in": 25.4,
         "inch": 25.4,
         "inches": 25.4,
-        '"': 25.4,  # " symbol for inches
         "ft": 304.8,
         "foot": 304.8,
         "feet": 304.8,
-        "um": 0.001,
+        "yd": 914.4,
+        "yard": 914.4,
+        "yards": 914.4,
+        "µm": 0.001,
         "micrometer": 0.001,
         "micrometers": 0.001,
     }
     
     @staticmethod
-    def parse_value_with_unit(value_str: str) -> tuple:
+    def detect_unit(value_str: str) -> tuple:
         """
-        Parse a string like '10 mm' or '5.5in' into (value, unit)
-        Returns: (float_value, unit_string)
+        Detect unit from string like "10 mm" or "0.5 in"
+        Returns: (number, unit_detected, unit_name)
         """
         try:
-            if not isinstance(value_str, str):
-                return float(value_str), "mm"
+            value_str = str(value_str).strip().lower()
             
-            value_str = value_str.strip().lower()
+            # Extract number and unit
+            parts = value_str.split()
+            if len(parts) >= 1:
+                try:
+                    number = float(parts[0])
+                except ValueError:
+                    logger.warning(f"Could not parse number from: {value_str}")
+                    return None, None, None
+                
+                if len(parts) > 1:
+                    unit = parts[1].strip()
+                else:
+                    # No unit specified
+                    logger.warning(f"No unit found in: {value_str}")
+                    return number, None, None
+                
+                # Normalize unit
+                unit_normalized = unit.lower()
+                
+                if unit_normalized in BOMConversionService.CONVERSION_FACTORS:
+                    return number, unit_normalized, unit_normalized
+                else:
+                    logger.warning(f"Unknown unit: {unit}")
+                    return number, unit_normalized, None
             
-            # Try to extract number and unit
-            import re
-            match = re.match(r'([\d.]+)\s*([a-z"]*)', value_str)
+            return None, None, None
             
-            if match:
-                value = float(match.group(1))
-                unit = match.group(2).strip() or "mm"
-                return value, unit
-            
-            # If no unit found, assume MM
-            return float(value_str), "mm"
-        
         except Exception as e:
-            logger.warning(f"Could not parse value '{value_str}': {str(e)}")
-            return None, None
+            logger.error(f"Error detecting unit: {str(e)}")
+            return None, None, None
     
     @staticmethod
-    def to_mm(value: float, unit: str) -> float:
-        """
-        Convert any unit to millimeters
-        Returns: value in MM (float)
-        """
+    def convert_to_mm(value: float, unit: str) -> float:
+        """Convert value from any unit to millimeters"""
         try:
-            unit_lower = unit.lower().strip()
+            if unit is None:
+                logger.warning("No unit specified, assuming MM")
+                return value
             
-            # Find matching conversion
-            if unit_lower in UnitConverter.CONVERSIONS:
-                conversion = UnitConverter.CONVERSIONS[unit_lower]
-                result = value * conversion
-                logger.info(f"✅ Converted {value} {unit} → {result} mm")
-                return round(result, 4)
+            unit_lower = str(unit).lower().strip()
             
-            # If unit not found, assume MM
-            logger.warning(f"⚠️ Unit '{unit}' not recognized, assuming MM")
-            return round(value, 4)
-        
+            if unit_lower not in BOMConversionService.CONVERSION_FACTORS:
+                logger.warning(f"Unknown unit: {unit_lower}, assuming MM")
+                return value
+            
+            factor = BOMConversionService.CONVERSION_FACTORS[unit_lower]
+            result = value * factor
+            
+            logger.info(f"Converted {value} {unit_lower} = {result} mm")
+            return result
+            
         except Exception as e:
-            logger.error(f"❌ Conversion error: {str(e)}")
+            logger.error(f"Error converting to mm: {str(e)}")
             return value
     
     @staticmethod
-    def convert_string_to_mm(value_str: str) -> float:
+    def convert_string_to_mm(value_str: str) -> tuple:
         """
-        Convert a string like '10 in' directly to MM
-        Returns: value in MM (float)
+        Convert string like "10 in" to MM
+        Returns: (value_in_mm, original_unit, converted_amount)
         """
-        value, unit = UnitConverter.parse_value_with_unit(value_str)
-        
-        if value is None:
-            return None
-        
-        return UnitConverter.to_mm(value, unit)
-
-
-class BOMEnhancer:
-    """Add custom columns and conversions to BOM"""
+        try:
+            number, unit_found, unit_name = BOMConversionService.detect_unit(value_str)
+            
+            if number is None:
+                logger.warning(f"Could not parse: {value_str}")
+                return None, None, None
+            
+            if unit_found is None:
+                logger.warning(f"No unit detected in: {value_str}")
+                return number, None, None
+            
+            mm_value = BOMConversionService.convert_to_mm(number, unit_found)
+            return mm_value, unit_name, number
+            
+        except Exception as e:
+            logger.error(f"Error converting string: {str(e)}")
+            return None, None, None
     
     @staticmethod
-    def add_custom_columns(bom_items: List[Dict], custom_data: Dict = None) -> List[Dict]:
+    def calculate_volume_mm3(length_mm: float, width_mm: float, height_mm: float) -> float:
+        """Calculate volume in cubic millimeters"""
+        try:
+            if any(val is None or val <= 0 for val in [length_mm, width_mm, height_mm]):
+                logger.warning("Invalid dimensions for volume calculation")
+                return 0
+            
+            volume = length_mm * width_mm * height_mm
+            logger.info(f"Volume: {length_mm}mm × {width_mm}mm × {height_mm}mm = {volume} mm³")
+            return volume
+            
+        except Exception as e:
+            logger.error(f"Error calculating volume: {str(e)}")
+            return 0
+    
+    @staticmethod
+    def add_custom_column_to_bom_item(item: Dict, column_name: str, value: Any) -> Dict:
+        """Add a custom column to a BOM item"""
+        try:
+            item[column_name] = value
+            return item
+        except Exception as e:
+            logger.error(f"Error adding custom column: {str(e)}")
+            return item
+    
+    @staticmethod
+    def process_bom_with_dimensions(
+        bom_items: List[Dict],
+        length_values: List[str] = None,
+        width_values: List[str] = None,
+        height_values: List[str] = None
+    ) -> List[Dict]:
         """
-        Add custom columns to BOM items
-        Supports: Length, Width, Height, Volume, Custom notes
+        Process BOM items and add dimension columns
         
         Args:
             bom_items: List of BOM items
-            custom_data: {item_index: {column_name: value}, ...}
+            length_values: List of length values (optional, strings with units)
+            width_values: List of width values (optional)
+            height_values: List of height values (optional)
         
-        Returns: Enhanced BOM items with new columns
+        Returns:
+            BOM items with new columns for dimensions and volume
         """
         try:
-            enhanced = []
-            
             for idx, item in enumerate(bom_items):
-                enhanced_item = item.copy()
+                # Add dimension columns
+                if length_values and idx < len(length_values):
+                    length_mm, unit, original = BOMConversionService.convert_string_to_mm(
+                        str(length_values[idx])
+                    )
+                    if length_mm is not None:
+                        item["Length (mm)"] = round(length_mm, 2)
+                        item["Length_Original"] = f"{original} {unit}" if unit else str(original)
                 
-                # Initialize custom columns if not present
-                if "custom_length_mm" not in enhanced_item:
-                    enhanced_item["custom_length_mm"] = None
-                if "custom_width_mm" not in enhanced_item:
-                    enhanced_item["custom_width_mm"] = None
-                if "custom_height_mm" not in enhanced_item:
-                    enhanced_item["custom_height_mm"] = None
-                if "custom_volume_mm3" not in enhanced_item:
-                    enhanced_item["custom_volume_mm3"] = None
-                if "custom_notes" not in enhanced_item:
-                    enhanced_item["custom_notes"] = ""
+                if width_values and idx < len(width_values):
+                    width_mm, unit, original = BOMConversionService.convert_string_to_mm(
+                        str(width_values[idx])
+                    )
+                    if width_mm is not None:
+                        item["Width (mm)"] = round(width_mm, 2)
+                        item["Width_Original"] = f"{original} {unit}" if unit else str(original)
                 
-                # Add user-provided custom data
-                if custom_data and idx in custom_data:
-                    for col_name, value in custom_data[idx].items():
-                        enhanced_item[f"custom_{col_name}"] = value
+                if height_values and idx < len(height_values):
+                    height_mm, unit, original = BOMConversionService.convert_string_to_mm(
+                        str(height_values[idx])
+                    )
+                    if height_mm is not None:
+                        item["Height (mm)"] = round(height_mm, 2)
+                        item["Height_Original"] = f"{original} {unit}" if unit else str(original)
                 
-                enhanced.append(enhanced_item)
+                # Calculate volume if all dimensions present
+                if "Length (mm)" in item and "Width (mm)" in item and "Height (mm)" in item:
+                    volume = BOMConversionService.calculate_volume_mm3(
+                        item["Length (mm)"],
+                        item["Width (mm)"],
+                        item["Height (mm)"]
+                    )
+                    item["Volume (mm³)"] = round(volume, 2)
             
-            logger.info(f"✅ Added custom columns to {len(enhanced)} BOM items")
-            return enhanced
-        
+            logger.info(f"Processed {len(bom_items)} items with dimensions")
+            return bom_items
+            
         except Exception as e:
-            logger.error(f"❌ Error adding custom columns: {str(e)}")
+            logger.error(f"Error processing BOM with dimensions: {str(e)}")
             return bom_items
     
     @staticmethod
-    def convert_bom_dimensions(bom_items: List[Dict]) -> List[Dict]:
+    def add_bounding_box_dimensions_to_bom(
+        bom_items: List[Dict],
+        bounding_boxes: List[Dict]
+    ) -> List[Dict]:
         """
-        Convert any dimension columns to MM
-        Looks for: length, width, height, size, dimension, etc.
-        
-        Returns: BOM items with all dimensions in MM
+        Add bounding box dimensions from bbox list to BOM items
+        Matches by part ID
         """
         try:
-            converted = []
+            # Create bbox lookup dictionary
+            bbox_map = {}
+            for bbox in bounding_boxes:
+                part_id = bbox.get("partId") or bbox.get("id")
+                if part_id:
+                    bbox_map[part_id] = bbox
             
+            # Add dimensions to BOM items
             for item in bom_items:
-                converted_item = item.copy()
+                part_id = item.get("partId") or item.get("id")
                 
-                # Look for dimension-related fields
-                dimension_fields = ["length", "width", "height", "size", "dimension", "thickness", "radius", "diameter"]
-                
-                for field in dimension_fields:
-                    # Check both exact and case-insensitive
-                    for key in converted_item.keys():
-                        if field.lower() in key.lower() and converted_item[key] is not None:
-                            # Try to convert value
-                            if isinstance(converted_item[key], str):
-                                mm_value = UnitConverter.convert_string_to_mm(converted_item[key])
-                                if mm_value is not None:
-                                    converted_item[f"{key}_mm"] = mm_value
-                                    logger.info(f"  Converted {key}: {converted_item[key]} → {mm_value} mm")
-                
-                converted.append(converted_item)
-            
-            logger.info(f"✅ Converted dimensions in {len(converted)} items to MM")
-            return converted
-        
-        except Exception as e:
-            logger.error(f"❌ Error converting dimensions: {str(e)}")
-            return bom_items
-    
-    @staticmethod
-    def calculate_volume_from_dimensions(length_mm: float, width_mm: float, height_mm: float) -> float:
-        """
-        Calculate volume in mm³ from L×W×H
-        
-        Args:
-            length_mm: Length in millimeters
-            width_mm: Width in millimeters
-            height_mm: Height in millimeters
-        
-        Returns: Volume in mm³
-        """
-        try:
-            if length_mm is None or width_mm is None or height_mm is None:
-                logger.warning("❌ Missing dimension for volume calculation")
-                return None
-            
-            volume = length_mm * width_mm * height_mm
-            logger.info(f"✅ Calculated volume: {length_mm}×{width_mm}×{height_mm} = {volume} mm³")
-            return round(volume, 2)
-        
-        except Exception as e:
-            logger.error(f"❌ Volume calculation error: {str(e)}")
-            return None
-    
-    @staticmethod
-    def add_dimensions_to_item(bom_item: Dict, length: float = None, width: float = None, height: float = None, 
-                               length_unit: str = "mm", width_unit: str = "mm", height_unit: str = "mm") -> Dict:
-        """
-        Add or update dimensions for a single BOM item
-        
-        Args:
-            bom_item: BOM item to update
-            length, width, height: Dimension values
-            length_unit, width_unit, height_unit: Units for each dimension
-        
-        Returns: Updated BOM item with dimensions and volume
-        """
-        try:
-            updated_item = bom_item.copy()
-            
-            # Convert dimensions to MM
-            if length is not None:
-                length_mm = UnitConverter.to_mm(float(length), length_unit)
-                updated_item["custom_length_mm"] = length_mm
-            
-            if width is not None:
-                width_mm = UnitConverter.to_mm(float(width), width_unit)
-                updated_item["custom_width_mm"] = width_mm
-            
-            if height is not None:
-                height_mm = UnitConverter.to_mm(float(height), height_unit)
-                updated_item["custom_height_mm"] = height_mm
-            
-            # Calculate volume if all dimensions present
-            if "custom_length_mm" in updated_item and "custom_width_mm" in updated_item and "custom_height_mm" in updated_item:
-                volume = BOMEnhancer.calculate_volume_from_dimensions(
-                    updated_item["custom_length_mm"],
-                    updated_item["custom_width_mm"],
-                    updated_item["custom_height_mm"]
-                )
-                updated_item["custom_volume_mm3"] = volume
-            
-            logger.info(f"✅ Updated item with dimensions")
-            return updated_item
-        
-        except Exception as e:
-            logger.error(f"❌ Error adding dimensions: {str(e)}")
-            return bom_item
-    
-    @staticmethod
-    def create_bom_with_custom_columns(bom_items: List[Dict], custom_dimensions: Dict = None) -> List[Dict]:
-        """
-        Create enhanced BOM with custom columns and conversions
-        
-        Args:
-            bom_items: Original BOM items
-            custom_dimensions: {item_index: {length: 5, width: 10, height: 20, units: 'in'}, ...}
-        
-        Returns: Enhanced BOM with custom columns
-        """
-        try:
-            # 1. Add custom column structure
-            enhanced = BOMEnhancer.add_custom_columns(bom_items)
-            
-            # 2. Add user-provided dimensions
-            if custom_dimensions:
-                for idx, dims in custom_dimensions.items():
-                    if idx < len(enhanced):
-                        length_unit = dims.get("length_unit", "mm")
-                        width_unit = dims.get("width_unit", "mm")
-                        height_unit = dims.get("height_unit", "mm")
+                if part_id and part_id in bbox_map:
+                    bbox = bbox_map[part_id]
+                    
+                    # Extract dimensions
+                    if "dimensions" in bbox:
+                        dims = bbox["dimensions"]
+                        item["Length_BBox (mm)"] = dims.get("length", 0)
+                        item["Width_BBox (mm)"] = dims.get("width", 0)
+                        item["Height_BBox (mm)"] = dims.get("height", 0)
+                        item["Volume_BBox (mm³)"] = dims.get("volume", 0)
+                    elif "lowX" in bbox:
+                        # Calculate from raw bbox
+                        length = (bbox.get("highX", 0) - bbox.get("lowX", 0)) * 1000
+                        width = (bbox.get("highY", 0) - bbox.get("lowY", 0)) * 1000
+                        height = (bbox.get("highZ", 0) - bbox.get("lowZ", 0)) * 1000
                         
-                        enhanced[idx] = BOMEnhancer.add_dimensions_to_item(
-                            enhanced[idx],
-                            length=dims.get("length"),
-                            width=dims.get("width"),
-                            height=dims.get("height"),
-                            length_unit=length_unit,
-                            width_unit=width_unit,
-                            height_unit=height_unit
-                        )
+                        item["Length_BBox (mm)"] = round(length, 2)
+                        item["Width_BBox (mm)"] = round(width, 2)
+                        item["Height_BBox (mm)"] = round(height, 2)
+                        item["Volume_BBox (mm³)"] = round(length * width * height, 2)
             
-            # 3. Try to convert any existing dimension fields
-            enhanced = BOMEnhancer.convert_bom_dimensions(enhanced)
-            
-            logger.info(f"✅ Created enhanced BOM with custom columns")
-            return enhanced
-        
-        except Exception as e:
-            logger.error(f"❌ Error creating enhanced BOM: {str(e)}")
+            logger.info(f"Added bounding box dimensions to {len(bom_items)} items")
             return bom_items
-
-
-# Example usage in routes:
-"""
-# In routes/bom.py or routes/properties.py
-
-from services.bom_service import BOMEnhancer, UnitConverter
-
-@router.post("/api/bom/add-dimensions")
-async def add_dimensions_to_bom(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
+            
+        except Exception as e:
+            logger.error(f"Error adding bbox dimensions: {str(e)}")
+            return bom_items
     
-    bom_items = data.get("bom_items", [])
-    custom_dimensions = data.get("custom_dimensions", {})  # {0: {length: 5, width: 10, ...}, ...}
-    
-    # Enhance BOM with custom columns
-    enhanced_bom = BOMEnhancer.create_bom_with_custom_columns(bom_items, custom_dimensions)
-    
-    return {
-        "status": "success",
-        "data": enhanced_bom,
-        "message": "Added custom columns and converted dimensions to MM"
-    }
-
-@router.post("/api/bom/convert-units")
-async def convert_units(request: Request):
-    data = await request.json()
-    
-    value_str = data.get("value")  # e.g., "10 in"
-    
-    mm_value = UnitConverter.convert_string_to_mm(value_str)
-    
-    return {
-        "status": "success",
-        "original": value_str,
-        "mm": mm_value,
-        "message": f"Converted to {mm_value} mm"
-    }
-"""
+    @staticmethod
+    def create_conversion_summary(original_value: str, converted_value: float, original_unit: str) -> Dict:
+        """Create a summary of conversion for display"""
+        return {
+            "original": original_value,
+            "converted_to_mm": round(converted_value, 2),
+            "unit_detected": original_unit,
+            "conversion_successful": True if converted_value is not None else False
+        }
