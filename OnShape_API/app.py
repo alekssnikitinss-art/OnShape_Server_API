@@ -3,12 +3,15 @@ OnShape BOM Manager - Refactored FastAPI Application
 Manages Bills of Materials, Bounding Boxes, and Properties in OnShape
 """
 
+
+import os
 from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
-from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import os
-
+from routes import auth, documents, bom, properties, user, bom_conversion
+from database import Base, engine, init_db
+from config import settings
 from routes import auth, documents, bom, properties, user
 from database import Base, engine, init_db
 from config import settings

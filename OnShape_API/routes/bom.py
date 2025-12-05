@@ -1,12 +1,15 @@
 """BOM Routes - Fetch & Push Working"""
 
+
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from sqlalchemy.orm import Session
 from database import get_db
 from services.auth_service import AuthService
 from services.onshape_service import OnShapeService
 from services.bom_service import BOMService
-import logging
+from services.bom_conversion import BOMConversionService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

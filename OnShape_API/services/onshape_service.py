@@ -1,5 +1,6 @@
+
 import requests
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError  
 from config import settings
 from typing import List, Dict, Any
 import logging
