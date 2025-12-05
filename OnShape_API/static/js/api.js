@@ -607,8 +607,3 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
         }
         throw error;
     }
-<<<<<<< HEAD
-}
-=======
-}
->>>>>>> dc8f7d5ee99c15cace36e8d7b57766480ee8e5fa
