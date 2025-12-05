@@ -429,3 +429,165 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
         throw error;
     }
 }
+
+ {
+    const value = document.getElementById('convertValue').value;
+    const unit = document.getElementById('convertUnit').value;
+    
+    if (!value) {
+        showResult('Please enter a value', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/bom/convert-unit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value, unit })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            document.getElementById('conversionResult').innerHTML = `
+                <div class="success">
+                    ✅ <strong>${result.original} ${result.unit}</strong> = 
+                    <strong style="font-size: 18px;">${result.converted_mm} mm</strong>
+                </div>
+            `;
+        } else {
+            document.getElementById('conversionResult').innerHTML = `
+                <div class="error">❌ ${result.message || 'Conversion failed'}</div>
+            `;
+        }
+    } catch (e) {
+        document.getElementById('conversionResult').innerHTML = `
+            <div class="error">❌ Error: ${e.message}</div>
+        `;
+    }
+}
+
+// Volume Calculator
+async function calculateVolume() {
+    const length = parseFloat(document.getElementById('lengthMM').value);
+    const width = parseFloat(document.getElementById('widthMM').value);
+    const height = parseFloat(document.getElementById('heightMM').value);
+    
+    if (!length || !width || !height) {
+        showResult('Please enter all dimensions', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/bom/calculate-volume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ length_mm: length, width_mm: width, height_mm: height })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            document.getElementById('volumeResult').innerHTML = `
+                <div class="success">
+                    ✅ <strong>${length}</strong> × <strong>${width}</strong> × <strong>${height}</strong> mm
+                    <br>= <strong style="font-size: 18px; color: #28a745;">${result.volume_mm3} mm³</strong>
+                </div>
+            `;
+        }
+    } catch (e) {
+        document.getElementById('volumeResult').innerHTML = `
+            <div class="error">❌ Error: ${e.message}</div>
+        `;
+    }
+}
+
+// Toggle Dimension Input Mode
+function toggleDimensionMode() {
+    const useCheckbox = document.getElementById('useBoundingBoxes').checked;
+    document.getElementById('manualMode').style.display = useCheckbox ? 'none' : 'block';
+    document.getElementById('bboxMode').style.display = useCheckbox ? 'block' : 'none';
+}
+
+// Add Dimensions to BOM
+async function addDimensionsToBOM() {
+    if (!currentDocId || !currentWorkId || !currentElemId || !userId) {
+        showResult('Please load a BOM first', 'error');
+        return;
+    }
+    
+    const useBbox = document.getElementById('useBoundingBoxes').checked;
+    
+    let lengthValues = [];
+    let widthValues = [];
+    let heightValues = [];
+    
+    if (!useBbox) {
+        lengthValues = document.getElementById('lengthInput').value.split('\n').filter(v => v.trim());
+        widthValues = document.getElementById('widthInput').value.split('\n').filter(v => v.trim());
+        heightValues = document.getElementById('heightInput').value.split('\n').filter(v => v.trim());
+        
+        if (!lengthValues.length && !widthValues.length && !heightValues.length) {
+            showResult('Please enter dimension values', 'error');
+            return;
+        }
+    }
+    
+    showResult('Adding dimensions to BOM...', 'info');
+    
+    try {
+        const response = await fetch('/api/bom/add-dimensions-to-bom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                doc_id: currentDocId,
+                workspace_id: currentWorkId,
+                element_id: currentElemId,
+                user_id: userId,
+                length_values: lengthValues,
+                width_values: widthValues,
+                height_values: heightValues,
+                use_bounding_boxes: useBbox
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            currentData = result.bom_items;
+            displayBOM({ bomTable: { items: result.bom_items } });
+            document.getElementById('dimensionResult').innerHTML = `
+                <div class="success">
+                    ✅ Added dimensions to <strong>${result.items_count}</strong> BOM items
+                    <br>New columns added: Length (mm), Width (mm), Height (mm), Volume (mm³)
+                </div>
+            `;
+        }
+    } catch (e) {
+        document.getElementById('dimensionResult').innerHTML = `
+            <div class="error">❌ Error: ${e.message}</div>
+        `;
+    }
+}
+
+// Show Supported Units
+async function showSupportedUnits() {
+    try {
+        const response = await fetch('/api/bom/supported-units');
+        const result = await response.json();
+        
+        let html = '<h4>Supported Units (Conversion to MM):</h4>';
+        html += '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<tr style="background: #667eea; color: white;"><th style="padding: 10px;">Unit</th><th style="padding: 10px;">Factor</th></tr>';
+        
+        for (const [unit, factor] of Object.entries(result.supported_units)) {
+            html += `<tr style="border-bottom: 1px solid #ddd;"><td style="padding: 8px;">${unit}</td><td style="padding: 8px;">${factor}</td></tr>`;
+        }
+        
+        html += '</table>';
+        
+        document.getElementById('unitsResult').innerHTML = html;
+    } catch (e) {
+        document.getElementById('unitsResult').innerHTML = `<div class="error">❌ Error loading units</div>`;
+    }
+}
