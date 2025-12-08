@@ -178,12 +178,12 @@ async function viewPartMetadata(partId, partName) {
     }
 }
 
-function searchParts() {
+function searchPartsFunction() {
     const searchTerm = document.getElementById('searchParts').value.trim().toLowerCase();
     
     if (!searchTerm) {
         filteredPartsData = [...partsData];
-        displayPartsList(partsData, 'Filtered');
+        displayPartsList(partsData, 'All');
         return;
     }
     
@@ -255,32 +255,48 @@ function exportPartsListCSV() {
 
 // Setup event listeners (called from app.js)
 function setupPartsScannerListeners() {
+    console.log('🔧 Setting up parts scanner listeners');
+    
     const scanPartstudioBtn = document.getElementById('scanPartstudioBtn');
     const scanAssemblyBtn = document.getElementById('scanAssemblyBtn');
-    const searchParts = document.getElementById('searchParts');
+    const searchPartsInput = document.getElementById('searchParts');
     const exportPartsBtn = document.getElementById('exportPartsBtn');
     const exportMetadataBtn = document.getElementById('exportMetadataBtn');
     
     if (scanPartstudioBtn) {
         scanPartstudioBtn.onclick = scanPartstudioParts;
+        console.log('✅ Bound scanPartstudioBtn');
+    } else {
+        console.warn('⚠️ scanPartstudioBtn not found');
     }
     
     if (scanAssemblyBtn) {
         scanAssemblyBtn.onclick = scanAssemblyComponents;
+        console.log('✅ Bound scanAssemblyBtn');
+    } else {
+        console.warn('⚠️ scanAssemblyBtn not found');
     }
     
-    if (searchParts) {
-        searchParts.addEventListener('keyup', searchParts);
+    if (searchPartsInput) {
+        searchPartsInput.addEventListener('keyup', searchPartsFunction);
+        console.log('✅ Bound searchParts');
+    } else {
+        console.warn('⚠️ searchParts not found');
     }
     
     if (exportPartsBtn) {
         exportPartsBtn.onclick = exportPartsListJSON;
+        console.log('✅ Bound exportPartsBtn');
+    } else {
+        console.warn('⚠️ exportPartsBtn not found');
     }
     
     if (exportMetadataBtn) {
         exportMetadataBtn.onclick = exportPartsListCSV;
+        console.log('✅ Bound exportMetadataBtn');
+    } else {
+        console.warn('⚠️ exportMetadataBtn not found');
     }
+    
+    console.log('✅ Parts scanner listeners setup complete');
 }
-
-// Auto-setup when document loads
-document.addEventListener('DOMContentLoaded', setupPartsScannerListeners);
