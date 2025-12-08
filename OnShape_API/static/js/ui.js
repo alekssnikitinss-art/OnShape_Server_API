@@ -77,10 +77,10 @@ function displayBOM(data) {
         
         h += '<tr>';
         h += '<td class="' + indentClass + '">' + (item.item || item.Item || '-') + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="partNumber">' + (item.partNumber || item.PART_NUMBER || item['Part Number'] || '-') + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="name">' + (item.name || item.NAME || item.Name || '-') + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="quantity">' + (item.quantity || item.QUANTITY || item.Quantity || '-') + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="description">' + (item.description || item.DESCRIPTION || item.Description || '-') + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="partNumber" data-type="bom">' + (item.partNumber || item.PART_NUMBER || item['Part Number'] || '-') + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="name" data-type="bom">' + (item.name || item.NAME || item.Name || '-') + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="quantity" data-type="bom">' + (item.quantity || item.QUANTITY || item.Quantity || '-') + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="description" data-type="bom">' + (item.description || item.DESCRIPTION || item.Description || '-') + '</td>';
         h += '</tr>';
     });
     
@@ -119,14 +119,14 @@ function displayBoundingBoxes(data) {
             y = ((box.highY || 0) - (box.lowY || 0)) * 1000;
             z = ((box.highZ || 0) - (box.lowZ || 0)) * 1000;
             vol = (x * y * z);
-            pid = box.partId || 'Unknown';
+            pid = box.partId || box.id || 'Unknown';
         }
         
         h += '<tr>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="partId">' + pid + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthX">' + parseFloat(x).toFixed(2) + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthY">' + parseFloat(y).toFixed(2) + '</td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthZ">' + parseFloat(z).toFixed(2) + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="partId" data-type="bbox">' + pid + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthX" data-type="bbox">' + parseFloat(x).toFixed(2) + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthY" data-type="bbox">' + parseFloat(y).toFixed(2) + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="lengthZ" data-type="bbox">' + parseFloat(z).toFixed(2) + '</td>';
         h += '<td>' + parseFloat(vol).toFixed(2) + '</td>';
         h += '</tr>';
     });
@@ -153,7 +153,7 @@ function displayVariables(data) {
     data.variables.forEach((v, idx) => {
         h += '<tr>';
         h += '<td><strong>' + (v.name || v.variableName || 'Unknown') + '</strong></td>';
-        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="value">' + (v.value || v.expression || '-') + '</td>';
+        h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="value" data-type="variable">' + (v.value || v.expression || '-') + '</td>';
         h += '<td>' + (v.unit || v.units || '-') + '</td>';
         h += '<td>' + (v.partName || v.partId || v.featureId || 'Global') + '</td>';
         h += '</tr>';
@@ -210,7 +210,7 @@ function displayGenericTable(data) {
     data.forEach((row, idx) => {
         h += '<tr>';
         headers.forEach(header => {
-            h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="' + header + '">' + (row[header] || '') + '</td>';
+            h += '<td class="editable-cell" contenteditable="true" data-row="' + idx + '" data-field="' + header + '" data-type="generic">' + (row[header] || '') + '</td>';
         });
         h += '</tr>';
     });
@@ -247,13 +247,33 @@ function attachEditListeners() {
             const row = parseInt(this.dataset.row);
             const field = this.dataset.field;
             const val = this.textContent.trim();
+            const dataType = this.dataset.type || 'bom';  // ← NEW: Check data type
             
-            if (currentData && currentData.bomTable && currentData.bomTable.items) {
+            console.log(`📝 Edited ${dataType}: row=${row}, field=${field}, value=${val}`);
+            
+            // Only update if currentData matches this type
+            if (dataType === 'bom' && currentData && currentData.bomTable && currentData.bomTable.items) {
                 if (currentData.bomTable.items[row]) {
                     currentData.bomTable.items[row][field] = val;
+                    console.log('✅ Updated BOM item');
                 }
-            } else if (Array.isArray(currentData) && currentData[row]) {
-                currentData[row][field] = val;
+            } else if (dataType === 'bbox' && currentData && Array.isArray(currentData)) {
+                if (currentData[row]) {
+                    currentData[row][field] = val;
+                    console.log('✅ Updated bounding box');
+                }
+            } else if (dataType === 'variable' && currentData && currentData.variables) {
+                if (currentData.variables[row]) {
+                    currentData.variables[row][field] = val;
+                    console.log('✅ Updated variable');
+                }
+            } else if (dataType === 'generic' && Array.isArray(currentData)) {
+                if (currentData[row]) {
+                    currentData[row][field] = val;
+                    console.log('✅ Updated generic data');
+                }
+            } else {
+                console.warn(`⚠️ currentData type mismatch. Expected ${dataType}, got:`, currentData);
             }
         });
     });
