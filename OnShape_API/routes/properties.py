@@ -61,8 +61,22 @@ async def get_bounding_boxes(
                 if isinstance(bbox, dict):
                     dimensions = BOMService.calculate_dimensions(bbox)
                     bbox["dimensions"] = dimensions
+                    
+                    # ← ADD PART ID IF MISSING
+                    if not bbox.get("partId"):
+                        # Try different field names for part ID
+                        part_id = (
+                            bbox.get("partId") or 
+                            bbox.get("id") or 
+                            bbox.get("part_id") or
+                            bbox.get("partInstanceId") or
+                            f"part_{idx}"  # ← Fallback: generate ID based on index
+                        )
+                        bbox["partId"] = part_id
+                        logger.info(f"   Added partId: {part_id}")
+                    
                     processed.append(bbox)
-                    logger.info(f"✅ Bbox {idx+1}: L={dimensions['length']}, W={dimensions['width']}, H={dimensions['height']}")
+                    logger.info(f"✅ Bbox {idx+1}: L={dimensions['length']}, W={dimensions['width']}, H={dimensions['height']}, partId={bbox.get('partId')}")
                 else:
                     logger.warning(f"⚠️ Bbox {idx+1} is not a dict: {type(bbox)}")
                     
@@ -70,6 +84,7 @@ async def get_bounding_boxes(
                 logger.warning(f"⚠️ Could not process bbox {idx+1}: {str(e)}")
                 try:
                     bbox["dimensions"] = {"length": 0, "width": 0, "height": 0, "volume": 0}
+                    bbox["partId"] = f"part_{idx}"
                     processed.append(bbox)
                 except:
                     pass
@@ -237,9 +252,18 @@ async def create_length_properties(
         # Process each bounding box
         for idx, bbox in enumerate(bboxes):
             try:
-                part_id = bbox.get("partId")
+                # ← IMPROVED: Better part ID detection
+                part_id = (
+                    bbox.get("partId") or 
+                    bbox.get("id") or 
+                    bbox.get("part_id") or
+                    bbox.get("partInstanceId")
+                )
+                
                 if not part_id:
                     logger.warning(f"⚠️ Part {idx+1} has no partId")
+                    error_msg = f"Part {idx+1}: No part ID found"
+                    errors.append(error_msg)
                     continue
                 
                 # Calculate dimensions
@@ -249,7 +273,7 @@ async def create_length_properties(
                 
                 # Create property objects
                 properties = BOMService.create_property_objects(dimensions)
-                logger.info(f"📤 Updating metadata for part {part_id[:12]}")
+                logger.info(f"📤 Updating metadata for part {part_id[:12] if len(str(part_id)) > 12 else part_id}")
                 
                 # Update metadata
                 try:
@@ -257,7 +281,7 @@ async def create_length_properties(
                     updated_count += 1
                     logger.info(f"✅ Updated part {idx+1}")
                 except Exception as e:
-                    error_msg = f"Part {part_id[:8]}: {str(e)[:50]}"
+                    error_msg = f"Part {part_id[:8] if len(str(part_id)) > 8 else part_id}: {str(e)[:50]}"
                     errors.append(error_msg)
                     logger.warning(f"⚠️ {error_msg}")
             
