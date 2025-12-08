@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OnShape BOM Manager</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%23667eea'>⚙️</text></svg>">
 </head>
 <body>
     <div class="container">
@@ -205,10 +206,17 @@
         <div id="unitsResult" style="margin-top: 10px;"></div>
     </div>
 
-    <!-- Load JavaScript files in correct order -->
+    <!-- ========== CORRECT SCRIPT LOADING ORDER ========== -->
+    <!-- Step 1: Load UI.JS first (display functions) -->
     <script src="/static/js/ui.js"></script>
+    
+    <!-- Step 2: Load API.JS second (API functions) -->
     <script src="/static/js/api.js"></script>
+    
+    <!-- Step 3: Load PARTS-SCANNER.JS third (scanner functions) -->
     <script src="/static/js/parts-scanner.js"></script>
+    
+    <!-- Step 4: Load APP.JS last (initialization that uses all above) -->
     <script src="/static/js/app.js"></script>
 </body>
 </html>
