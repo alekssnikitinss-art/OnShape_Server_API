@@ -1,4 +1,3 @@
-
 import requests
 from requests.exceptions import HTTPError  
 from config import settings
@@ -16,7 +15,8 @@ class OnShapeService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        self.timeout = 30
+        self.timeout = 60  # Increased from 30 to 60 seconds
+        self.bom_timeout = 120  # 2 minutes for large BOM documents
     
     def get_documents(self) -> List[Dict]:
         """Get user's documents"""
@@ -54,7 +54,7 @@ class OnShapeService:
             params = {"indented": "true" if indented else "false"}
             
             logger.info(f"📍 URL: {url}")
-            response = requests.get(url, headers=self.headers, params=params, timeout=self.timeout)
+            response = requests.get(url, headers=self.headers, params=params, timeout=self.bom_timeout)
             
             if response.status_code == 200:
                 logger.info(f"✅ Got BOM from Assembly endpoint")
@@ -65,7 +65,7 @@ class OnShapeService:
             url_parts = f"{settings.ONSHAPE_API_URL}/parts/d/{document_id}/w/{workspace_id}/e/{element_id}"
             logger.info(f"📍 Trying PartStudio parts: {url_parts}")
             
-            response_parts = requests.get(url_parts, headers=self.headers, timeout=self.timeout)
+            response_parts = requests.get(url_parts, headers=self.headers, timeout=self.bom_timeout)
             
             if response_parts.status_code == 200:
                 logger.info(f"✅ Got parts from PartStudio endpoint")
@@ -102,10 +102,10 @@ class OnShapeService:
         try:
             url = f"{settings.ONSHAPE_API_URL}/partstudios/d/{document_id}/w/{workspace_id}/e/{element_id}/boundingboxes"
             
-            logger.info(f"📏 Fetching bounding boxes (timeout={self.timeout}s)...")
+            logger.info(f"📏 Fetching bounding boxes (timeout={self.bom_timeout}s)...")
             logger.info(f"   URL: {url}")
             
-            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            response = requests.get(url, headers=self.headers, timeout=self.bom_timeout)
             
             logger.info(f"   Response status: {response.status_code}")
             
@@ -138,7 +138,7 @@ class OnShapeService:
                 parts_url = f"{settings.ONSHAPE_API_URL}/parts/d/{document_id}/w/{workspace_id}/e/{element_id}"
                 logger.info(f"   Fetching parts from: {parts_url}")
                 
-                parts_response = requests.get(parts_url, headers=self.headers, timeout=self.timeout)
+                parts_response = requests.get(parts_url, headers=self.headers, timeout=self.bom_timeout)
                 parts_response.raise_for_status()
                 
                 parts_data = parts_response.json()
@@ -160,4 +160,98 @@ class OnShapeService:
         
         except Exception as e:
             logger.error(f"❌ get_bounding_boxes error: {str(e)}")
+            raise
+    
+    def get_configuration_variables(self, document_id: str, workspace_id: str, element_id: str) -> Dict:
+        """Get configuration variables for element - tries multiple endpoints"""
+        
+        logger.info(f"📋 Getting configuration variables: element={element_id[:8]}")
+        
+        # Try multiple endpoints
+        endpoints = [
+            f"/partstudios/d/{document_id}/w/{workspace_id}/e/{element_id}/variables",
+            f"/parts/d/{document_id}/w/{workspace_id}/e/{element_id}/variables",
+            f"/documents/d/{document_id}/w/{workspace_id}/e/{element_id}/parameters"
+        ]
+        
+        for endpoint in endpoints:
+            try:
+                logger.debug(f"   Trying endpoint: {endpoint}")
+                url = f"{settings.ONSHAPE_API_URL}{endpoint}"
+                
+                response = requests.get(
+                    url,
+                    headers=self.headers,
+                    timeout=self.timeout
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:  # Only return if not empty
+                        logger.info(f"✅ Got variables from endpoint: {endpoint}")
+                        return data
+                    else:
+                        logger.debug(f"   Endpoint returned empty data")
+                else:
+                    logger.debug(f"   Endpoint returned {response.status_code}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Endpoint failed: {e}")
+                continue
+        
+        logger.warning(f"⚠️ No endpoints returned variables")
+        return {
+            "variables": [],
+            "message": "Configuration variables not available via REST API"
+        }
+    
+    def update_metadata(self, doc_id: str, workspace_id: str, element_id: str, part_id: str, properties: List[Dict]) -> Dict:
+        """Update part metadata/properties"""
+        try:
+            url = f"{settings.ONSHAPE_API_URL}/parts/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}/metadata"
+            
+            payload = {"properties": properties}
+            
+            response = requests.post(
+                url,
+                headers=self.headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            return response.json()
+            
+        except Exception as e:
+            logger.error(f"❌ update_metadata error: {str(e)}")
+            raise
+    
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Make API request with logging"""
+        
+        logger.debug(f"🔄 {method.upper()} {url}")
+        logger.debug(f"   Timeout: {kwargs.get('timeout', self.timeout)}s")
+        
+        try:
+            if method.lower() == "get":
+                response = requests.get(
+                    url, 
+                    headers=self.headers, 
+                    timeout=kwargs.get('timeout', self.timeout),
+                    **{k: v for k, v in kwargs.items() if k != 'timeout'}
+                )
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+            
+            logger.debug(f"   Status: {response.status_code}")
+            logger.debug(f"   Response size: {len(response.content)} bytes")
+            
+            if response.status_code >= 400:
+                logger.error(f"   ❌ Error: {response.text[:200]}")
+            
+            response.raise_for_status()
+            return response
+            
+        except Exception as e:
+            logger.error(f"❌ Request failed: {str(e)}")
             raise

@@ -119,14 +119,15 @@ async def get_configuration_variables(
             service = OnShapeService(token)
             logger.info(f"🔄 Calling OnShape API for variables...")
             config_data = service.get_configuration_variables(doc_id, workspace_id, element_id)
-            logger.info(f"📊 Raw response: {config_data}")
+            logger.info(f"📊 Raw response: {str(config_data)[:200]}")
         except Exception as e:
             error_msg = str(e)
             logger.warning(f"⚠️ OnShape API error: {error_msg}")
             # Configuration might not exist - return empty but valid response
             return {
                 "status": "info",
-                "message": "No configuration variables found. This element may not have parametric features.",
+                "message": "Cannot retrieve configuration variables.",
+                "note": "Configuration variables may not be available via OnShape REST API. This is a known limitation.",
                 "data": None,
                 "variables": [],
                 "count": 0
@@ -155,12 +156,23 @@ async def get_configuration_variables(
         
         logger.info(f"✅ Retrieved {len(variables) if isinstance(variables, list) else '?'} configuration variables")
         
+        # Check if empty
+        if not variables or (isinstance(variables, list) and len(variables) == 0):
+            return {
+                "status": "info",
+                "message": "No configuration variables found.",
+                "note": "Configuration variables may not be available via OnShape REST API. This is a known limitation - they might only be accessible via the OnShape UI.",
+                "data": config_data,
+                "variables": [],
+                "count": 0
+            }
+        
         return {
-            "status": "success" if (isinstance(variables, list) and len(variables) > 0) else "info",
+            "status": "success",
             "data": config_data,
             "variables": variables if isinstance(variables, list) else [],
             "count": len(variables) if isinstance(variables, list) else 0,
-            "message": f"Retrieved {len(variables) if isinstance(variables, list) else 0} configuration variables" if isinstance(variables, list) and len(variables) > 0 else "No configuration variables found"
+            "message": f"Retrieved {len(variables) if isinstance(variables, list) else 0} configuration variables"
         }
     
     except HTTPException as e:
@@ -173,6 +185,7 @@ async def get_configuration_variables(
         return {
             "status": "info",
             "message": f"Could not retrieve configuration: {error_msg[:100]}",
+            "note": "Configuration variables may not be available via OnShape REST API",
             "data": None,
             "variables": [],
             "count": 0
