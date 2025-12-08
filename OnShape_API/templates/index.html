@@ -48,6 +48,28 @@
         </div>
         
         <div class="section">
+            <h2>🔍 Part Scanner & Metadata Browser</h2>
+            <p style="color:#666;margin-bottom:10px">💡 Scan all parts and view their metadata and properties</p>
+            
+            <div class="button-group">
+                <button id="scanPartstudioBtn">📦 Scan PartStudio Parts</button>
+                <button id="scanAssemblyBtn">🏗️ Scan Assembly Components</button>
+            </div>
+            
+            <div class="input-group">
+                <label for="searchParts">Search Parts:</label>
+                <input type="text" id="searchParts" placeholder="Search by name, ID, or property...">
+            </div>
+            
+            <div class="button-group">
+                <button id="exportPartsBtn" class="download-btn">⬇️ Export Parts List</button>
+                <button id="exportMetadataBtn" class="download-btn">⬇️ Export All Metadata</button>
+            </div>
+            
+            <div id="partsResults" style="max-height: 700px; overflow-y: auto; margin-top: 15px;"></div>
+        </div>
+        
+        <div class="section">
             <h2>📊 Data Operations</h2>
             <div class="toggle-group">
                 <label><strong>BOM Format:</strong></label>
@@ -183,14 +205,10 @@
         <div id="unitsResult" style="margin-top: 10px;"></div>
     </div>
 
-    <!-- ========== IMPORTANT: CORRECT SCRIPT LOADING ORDER ========== -->
-    <!-- Step 1: Load UI.JS first (display functions) -->
+    <!-- Load JavaScript files in correct order -->
     <script src="/static/js/ui.js"></script>
-    
-    <!-- Step 2: Load API.JS second (API functions that use ui.js) -->
     <script src="/static/js/api.js"></script>
-    
-    <!-- Step 3: Load APP.JS last (app initialization that uses both) -->
+    <script src="/static/js/parts-scanner.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

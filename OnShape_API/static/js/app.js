@@ -25,6 +25,9 @@ function initializeApp() {
     
     // Set BOM format buttons
     updateBOMFormatButtons();
+    
+    // Setup parts scanner listeners
+    setupPartsScannerListeners();
 }
 
 function bindButtonEvents() {

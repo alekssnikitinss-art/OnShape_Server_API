@@ -9,10 +9,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, documents, bom, properties, user, bom_conversion
-from database import Base, engine, init_db
-from config import settings
-from routes import auth, documents, bom, properties, user
+from routes import auth, documents, bom, properties, user, parts
 from database import Base, engine, init_db
 from config import settings
 
@@ -79,6 +76,7 @@ app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(bom.router, prefix="/api/bom", tags=["bom"])
 app.include_router(properties.router, prefix="/api/properties", tags=["properties"])
+app.include_router(parts.router, prefix="/api/parts", tags=["parts"])  # ← NEW: Parts scanner
 
 # ============= ERROR HANDLERS =============
 
