@@ -82,15 +82,21 @@ async def scan_partstudio_parts(
                     bbox = bbox_map.get(part_id, {})
                     dimensions = bbox.get("dimensions", {})
                     
+                    # Get material info
+                    material_info = {}
+                    if isinstance(part.get("material"), dict):
+                        material_info = part.get("material", {})
+                    
                     processed_parts.append({
                         "index": idx + 1,
                         "partId": part_id,
                         "name": part.get("name", f"Part {idx+1}"),
                         "partNumber": part.get("partNumber", ""),
-                        "material": part.get("material", ""),
+                        "material": material_info.get("displayName", "") if material_info else "",
                         "properties": properties,
                         "dimensions": dimensions,
-                        "propertyCount": len(properties)
+                        "propertyCount": len(properties),
+                        "fullMaterial": material_info
                     })
                     
                     logger.info(f"✅ Part {idx+1}: {part.get('name', 'Unknown')} - {len(properties)} properties")
@@ -144,14 +150,45 @@ async def scan_assembly_components(
         try:
             service = OnShapeService(token)
             
-            # Get assembly definition
-            logger.info("🏗️ Fetching assembly definition...")
+            # Try Assembly endpoint first
+            logger.info("🏗️ Trying Assembly API endpoint...")
             asm_url = f"{settings.ONSHAPE_API_URL}/assemblies/d/{doc_id}/w/{workspace_id}/e/{element_id}"
-            response = requests.get(asm_url, headers=service.headers, timeout=service.timeout)
-            response.raise_for_status()
-            asm_data = response.json()
             
-            components = asm_data.get("occurrences", [])
+            try:
+                response = requests.get(asm_url, headers=service.headers, timeout=service.timeout)
+                response.raise_for_status()
+                asm_data = response.json()
+                logger.info(f"✅ Got assembly data")
+                
+                components = asm_data.get("occurrences", [])
+            except Exception as e:
+                logger.warning(f"⚠️ Assembly endpoint failed: {e}")
+                logger.info(f"🔄 Falling back to Parts endpoint...")
+                
+                # Fallback: Get parts and treat as components
+                parts_url = f"{settings.ONSHAPE_API_URL}/parts/d/{doc_id}/w/{workspace_id}/e/{element_id}"
+                response = requests.get(parts_url, headers=service.headers, timeout=service.timeout)
+                response.raise_for_status()
+                parts_data = response.json()
+                
+                if not isinstance(parts_data, list):
+                    parts_data = [parts_data]
+                
+                logger.info(f"✅ Got {len(parts_data)} parts as fallback")
+                
+                # Convert parts to component format
+                components = []
+                for idx, part in enumerate(parts_data):
+                    components.append({
+                        "id": part.get("id", f"part_{idx}"),
+                        "name": part.get("name", f"Part {idx+1}"),
+                        "definition": {
+                            "documentId": doc_id
+                        },
+                        "properties": part.get("properties", {}),
+                        "_isPartStudio": True
+                    })
+            
             logger.info(f"📦 Found {len(components)} components")
             
             # Process each component
@@ -168,7 +205,7 @@ async def scan_assembly_components(
                     if isinstance(comp.get("properties"), list):
                         properties = comp.get("properties", [])
                     elif isinstance(comp.get("properties"), dict):
-                        properties = list(comp.get("properties", {}).items())
+                        properties = [{"name": k, "value": v} for k, v in comp.get("properties", {}).items()]
                     
                     processed_components.append({
                         "index": idx + 1,
@@ -232,13 +269,17 @@ async def get_part_metadata(
             service = OnShapeService(token)
             
             # Get metadata
-            logger.info(f"📋 Fetching metadata...")
+            logger.info(f"📋 Fetching metadata for {part_id}...")
             url = f"{settings.ONSHAPE_API_URL}/parts/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}/metadata"
             response = requests.get(url, headers=service.headers, timeout=service.timeout)
             
+            logger.info(f"   Response status: {response.status_code}")
+            
             if response.status_code == 200:
                 metadata = response.json()
+                logger.info(f"📋 Got metadata")
             else:
+                logger.warning(f"⚠️ No metadata available (status {response.status_code})")
                 metadata = {"properties": []}
             
             properties = metadata.get("properties", []) if isinstance(metadata, dict) else metadata

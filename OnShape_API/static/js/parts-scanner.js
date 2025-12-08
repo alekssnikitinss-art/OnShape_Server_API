@@ -147,27 +147,35 @@ async function viewPartMetadata(partId, partName) {
     }
     
     console.log(`📋 Getting metadata for ${partName} (${partId})`);
+    showResult('📋 Loading metadata...', 'info');
     
     try {
         const url = `/api/parts/part-metadata?doc_id=${encodeURIComponent(did)}&workspace_id=${encodeURIComponent(wid)}&element_id=${encodeURIComponent(eid)}&part_id=${encodeURIComponent(partId)}&user_id=${encodeURIComponent(userId)}`;
         
+        console.log('🔄 Fetching from:', url);
         const r = await fetch(url);
         const result = await r.json();
         
         console.log('📊 Metadata response:', result);
         
         if (result.properties && result.properties.length > 0) {
-            let h = `<h4>📋 Metadata for ${partName}</h4>`;
-            h += '<table style="width:100%; border-collapse:collapse;"><tr style="background:#f0f0f0;"><th style="padding:10px; text-align:left;">Property</th><th style="padding:10px; text-align:left;">Value</th></tr>';
+            let h = `<h3>📋 Metadata for: <strong>${partName}</strong></h3>`;
+            h += `<p><strong>Part ID:</strong> ${partId}</p>`;
+            h += '<table style="width:100%; border-collapse:collapse; background:white;"><tr style="background:#667eea; color:white;"><th style="padding:12px; text-align:left;">Property Name</th><th style="padding:12px; text-align:left;">Value</th></tr>';
             result.properties.forEach(prop => {
                 const propName = typeof prop === 'object' ? (prop.name || 'N/A') : prop;
                 const propValue = typeof prop === 'object' ? (prop.value || 'N/A') : 'N/A';
-                h += `<tr style="border-bottom:1px solid #ddd;"><td style="padding:10px;">${propName}</td><td style="padding:10px;">${propValue}</td></tr>`;
+                h += `<tr style="border-bottom:1px solid #ddd;"><td style="padding:12px;">${propName}</td><td style="padding:12px;">${propValue}</td></tr>`;
             });
             h += '</table>';
             document.getElementById('results').innerHTML = h;
+            showResult(`✅ Found ${result.count} properties for ${partName}`, 'success');
             console.log(`✅ Found ${result.count} properties`);
         } else {
+            let h = `<h3>ℹ️ Metadata for: <strong>${partName}</strong></h3>`;
+            h += `<p><strong>Part ID:</strong> ${partId}</p>`;
+            h += '<p style="color:#666;">No custom properties found for this part. This is normal if no custom metadata has been added.</p>';
+            document.getElementById('results').innerHTML = h;
             showResult(`ℹ️ No custom properties found for ${partName}`, 'info');
             console.log('ℹ️ No properties');
         }
