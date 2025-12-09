@@ -43,6 +43,7 @@ Status Code: 400_". Also it is able to check API working statuss.
   (03.17PM) Made an idea, that due to a bit unbelivable values, its hard to belive, if they are made correcly, since, OnShape uses INCH as standart, but MiliMeters are needed, soo, I have to make a function, that checks, wheather or not, values are correct, using API comunication, I need to check, what values does, the PARTSTUDIO use, if inch, then convert to MILIMETERS. I need to increase, waiting times for gettinh the BOM, since some BOM documents in WORK spaces, are pretty large. After getting accses, hopefully tomorow, im gonna have to make tests, wheater or not "**CREATE LENGTH PROPERTIES**" Does create values correctly and if it even pushes them back to OnShape, also have to check wheater or not values get pushed back correctly back to OnShapes BOM.  
   (05.12.2025) Added a function that allows me to convert values to MM, currretly working with unrelieblity, but, that is a thing to fix. There have been no results, for Kalvis on attempts for Getting config variables and also having creating length properties correctly. Soo it might be dependent on API or how OnShape allows to edit and change metadata.  
   (08.12.2025) added a new function, for API, to search values in a part studio or ID.
+  (09.12.2025) Added function, as an expermiment worked 50/50, the results could've been better but, compiling issues and possible lack of, OnShape API supported features.
 
     
 
