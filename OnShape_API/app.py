@@ -1,6 +1,6 @@
 """
 OnShape BOM Manager - Refactored FastAPI Application
-Manages Bills of Materials, Bounding Boxes, and Properties in OnShape
+Manages Bills of Materials, Bounding Boxes, Properties, and Metadata in OnShape
 """
 
 
@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, documents, bom, properties, user, parts
+from routes import auth, documents, bom, properties, user, bom_conversion, parts, metadata
 from database import Base, engine, init_db
 from config import settings
 
@@ -19,8 +19,8 @@ init_db()
 # Create FastAPI app
 app = FastAPI(
     title="OnShape BOM Manager",
-    description="Manage OnShape BOMs and bounding boxes",
-    version="2.0.0"
+    description="Manage OnShape BOMs, properties, and metadata",
+    version="2.1.0"
 )
 
 # Add CORS middleware
@@ -65,7 +65,7 @@ async def health_check():
     """Health check endpoint for deployment"""
     return {
         "status": "healthy",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "database": "connected"
     }
 
@@ -76,7 +76,8 @@ app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(bom.router, prefix="/api/bom", tags=["bom"])
 app.include_router(properties.router, prefix="/api/properties", tags=["properties"])
-app.include_router(parts.router, prefix="/api/parts", tags=["parts"])  # ← NEW: Parts scanner
+app.include_router(parts.router, prefix="/api/parts", tags=["parts"])
+app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
 
 # ============= ERROR HANDLERS =============
 
@@ -105,6 +106,7 @@ async def startup_event():
     print("🚀 OnShape BOM Manager starting...")
     print(f"📊 Database: {settings.DATABASE_URL}")
     print(f"🔐 Debug mode: {settings.DEBUG}")
+    print(f"✅ Metadata service available at /api/metadata")
 
 @app.on_event("shutdown")
 async def shutdown_event():
