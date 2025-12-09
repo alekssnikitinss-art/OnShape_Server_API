@@ -1,6 +1,6 @@
 """
-services/metadata_service.py - Handle OnShape Metadata READ/WRITE Operations
-Properly implements the OnShape metadata endpoint with correct request/response format
+services/metadata_service.py - CORRECTED Implementation
+Using EXACT OnShape API format from official documentation
 """
 
 import requests
@@ -18,7 +18,7 @@ class MetadataService:
         self.access_token = access_token
         self.headers = {
             "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json;charset=UTF-8"
         }
         self.timeout = 30
     
@@ -34,22 +34,9 @@ class MetadataService:
         """
         Get metadata for a specific part
         This retrieves ALL properties and their IDs for the part
-        
-        Returns:
-        {
-            "items": [{
-                "href": "...",
-                "properties": [
-                    {
-                        "propertyId": "57f3fb8efa3416c06701d60d",
-                        "value": "100"
-                    }
-                ]
-            }]
-        }
         """
         try:
-            url = f"{settings.ONSHAPE_API_URL}/metadata/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}"
+            url = f"{settings.ONSHAPE_API_URL}/v10/metadata/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}"
             
             logger.info(f"📖 GET metadata for part: {part_id}")
             logger.info(f"   URL: {url}")
@@ -62,7 +49,6 @@ class MetadataService:
             
             logger.info(f"   Response status: {response.status_code}")
             
-            # 404 is normal - means no custom properties
             if response.status_code == 404:
                 logger.info(f"⚠️ No metadata found (part has no custom properties)")
                 return None
@@ -72,7 +58,7 @@ class MetadataService:
                 raise Exception(f"GET metadata failed: {response.text}")
             
             metadata = response.json()
-            logger.info(f"✅ Retrieved metadata with {len(self._get_properties(metadata))} properties")
+            logger.info(f"✅ Retrieved metadata with properties")
             
             return metadata
         
@@ -98,8 +84,8 @@ class MetadataService:
             workspace_id: Workspace ID
             element_id: Element ID (PartStudio or Assembly)
             part_id: Part ID
-            property_updates: Dict of {propertyName: newValue}
-                Example: {"Length": "100", "Material": "Aluminum"}
+            property_updates: Dict of {propertyId: newValue}
+                Example: {"propertyId_123": "100", "propertyId_456": "Aluminum"}
         
         Returns:
             True if successful, False otherwise
@@ -108,40 +94,43 @@ class MetadataService:
             logger.info(f"✏️ Updating metadata for part: {part_id}")
             logger.info(f"   Properties to update: {property_updates}")
             
-            # Step 1: GET current metadata to get propertyIds
+            # Get current metadata to verify properties exist
             current_metadata = self.get_part_metadata(doc_id, workspace_id, element_id, part_id)
             
             if current_metadata is None:
-                logger.warning(f"⚠️ Part has no existing metadata. Cannot update.")
+                logger.warning(f"⚠️ Part has no existing metadata")
                 return False
             
-            # Step 2: Extract propertyIds and build update payload
-            property_map = self._build_property_map(current_metadata)
-            logger.info(f"   Found {len(property_map)} existing properties: {list(property_map.keys())}")
+            # Build request body using EXACT OnShape format from documentation
+            # The key difference: jsonType field and correct structure
+            request_body = {
+                "jsonType": "metadata-part",
+                "partId": part_id,
+                "properties": []
+            }
             
-            # Step 3: Build the correct request body
-            update_body = self._build_update_body(
-                current_metadata,
-                property_updates,
-                property_map
-            )
+            # Add properties from the updates dict
+            for property_id, new_value in property_updates.items():
+                logger.info(f"   Updating property {property_id}: → '{new_value}'")
+                request_body["properties"].append({
+                    "value": new_value,
+                    "propertyId": property_id
+                })
             
-            if not update_body:
+            if not request_body["properties"]:
                 logger.warning(f"⚠️ No valid properties to update")
                 return False
             
-            # Step 4: POST to update metadata
-            url = f"{settings.ONSHAPE_API_URL}/metadata/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}"
-            # Add configuration parameter - IMPORTANT!
-            url += "?configuration=default"
+            # POST to update metadata - CORRECT ENDPOINT with v10
+            url = f"{settings.ONSHAPE_API_URL}/v10/metadata/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}"
             
             logger.info(f"📤 POST to: {url}")
-            logger.info(f"   Body: {update_body}")
+            logger.info(f"   Body: {request_body}")
             
             response = requests.post(
                 url,
                 headers=self.headers,
-                json=update_body,
+                json=request_body,
                 timeout=self.timeout
             )
             
@@ -176,7 +165,9 @@ class MetadataService:
             element_id: Element ID
             parts_updates: List of {
                 "partId": "xxx",
-                "updates": {"Length": "100", "Material": "Steel"}
+                "updates": {
+                    "propertyId_123": "new_value"
+                }
             }
         
         Returns:
@@ -206,114 +197,3 @@ class MetadataService:
         logger.info(f"✅ Updated {success_count}/{len(parts_updates)} parts successfully")
         
         return results
-    
-    # ============= HELPER METHODS =============
-    
-    def _get_properties(self, metadata: Optional[Dict]) -> List[Dict]:
-        """Extract properties list from metadata response"""
-        if not metadata:
-            return []
-        
-        items = metadata.get("items", [])
-        if not items or len(items) == 0:
-            return []
-        
-        return items[0].get("properties", [])
-    
-    def _build_property_map(self, metadata: Dict) -> Dict[str, str]:
-        """
-        Build map of {propertyName: propertyId} from metadata
-        
-        Example output:
-        {
-            "Length": "57f3fb8efa3416c06701d60d",
-            "Material": "57f3fb8efa3416c06701d60e"
-        }
-        """
-        prop_map = {}
-        properties = self._get_properties(metadata)
-        
-        for prop in properties:
-            # Note: OnShape returns propertyId in metadata
-            # But doesn't always include the property name
-            # So we use the propertyId as both key and value
-            prop_id = prop.get("propertyId")
-            if prop_id:
-                prop_map[prop_id] = prop_id
-        
-        return prop_map
-    
-    def _build_update_body(
-        self,
-        current_metadata: Dict,
-        property_updates: Dict[str, str],
-        property_map: Dict[str, str]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Build the correct request body for POST update
-        
-        OnShape requires:
-        {
-            "items": [{
-                "href": "...",  # From current metadata
-                "properties": [{
-                    "propertyId": "...",  # From property_map
-                    "value": "..."  # New value
-                }]
-            }]
-        }
-        """
-        try:
-            items = current_metadata.get("items", [])
-            if not items or len(items) == 0:
-                logger.error("❌ No items in metadata")
-                return None
-            
-            current_item = items[0]
-            current_href = current_item.get("href")
-            current_properties = current_item.get("properties", [])
-            
-            if not current_href:
-                logger.error("❌ No href in metadata")
-                return None
-            
-            # Build new properties array with updated values
-            updated_properties = []
-            
-            for current_prop in current_properties:
-                prop_id = current_prop.get("propertyId")
-                current_value = current_prop.get("value")
-                
-                # Check if this property should be updated
-                new_value = property_updates.get(prop_id)
-                
-                if new_value is not None:
-                    logger.info(f"   Updating {prop_id}: '{current_value}' → '{new_value}'")
-                    updated_properties.append({
-                        "propertyId": prop_id,
-                        "value": new_value
-                    })
-                else:
-                    # Keep existing value
-                    updated_properties.append({
-                        "propertyId": prop_id,
-                        "value": current_value
-                    })
-            
-            if not updated_properties:
-                logger.warning("⚠️ No properties to update")
-                return None
-            
-            # Build final body
-            body = {
-                "items": [{
-                    "href": current_href,
-                    "properties": updated_properties
-                }]
-            }
-            
-            return body
-        
-        except Exception as e:
-            logger.error(f"❌ Error building update body: {str(e)}")
-            return None

@@ -1,6 +1,5 @@
 """
-routes/metadata.py - Metadata Read/Write Endpoints
-Properly implements OnShape metadata operations
+routes/metadata.py - CORRECTED (Using official OnShape API format)
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
@@ -27,6 +26,18 @@ async def get_metadata(
     """
     Get metadata for a specific part
     Shows all custom properties and their IDs
+    
+    Example Response:
+    {
+      "properties": [
+        {
+          "name": "Length",
+          "value": "100",
+          "propertyId": "57f3fb8efa3416c06701d60d",
+          ...
+        }
+      ]
+    }
     """
     try:
         if not all([doc_id, workspace_id, element_id, part_id, user_id]):
@@ -42,25 +53,14 @@ async def get_metadata(
         if metadata is None:
             return {
                 "status": "info",
-                "data": {
-                    "partId": part_id,
-                    "properties": [],
-                    "propertyCount": 0
-                },
-                "message": "Part has no custom properties defined. Define properties in OnShape UI first."
+                "data": None,
+                "message": "Part has no custom properties defined"
             }
-        
-        properties = metadata.get("items", [{}])[0].get("properties", [])
         
         return {
             "status": "success",
-            "data": {
-                "partId": part_id,
-                "properties": properties,
-                "propertyCount": len(properties),
-                "rawMetadata": metadata
-            },
-            "message": f"Retrieved {len(properties)} custom properties"
+            "data": metadata,
+            "message": "Retrieved metadata successfully"
         }
     
     except Exception as e:
@@ -84,7 +84,7 @@ async def update_metadata(
         "doc_id": "...",
         "workspace_id": "...",
         "element_id": "...",
-        "part_id": "...",
+        "part_id": "JHD",
         "updates": {
             "propertyId_1": "new_value_1",
             "propertyId_2": "new_value_2"
@@ -125,8 +125,7 @@ async def update_metadata(
                 "status": "success",
                 "data": {
                     "partId": part_id,
-                    "updated": True,
-                    "updates": updates
+                    "updated": True
                 },
                 "message": f"Successfully updated {len(updates)} properties"
             }
@@ -137,7 +136,7 @@ async def update_metadata(
                     "partId": part_id,
                     "updated": False
                 },
-                "message": "Failed to update metadata. Check logs for details."
+                "message": "Failed to update metadata"
             }
     
     except Exception as e:
@@ -163,15 +162,10 @@ async def batch_update_metadata(
         "element_id": "...",
         "parts": [
             {
-                "partId": "part_1",
+                "partId": "JHD",
                 "updates": {
-                    "propertyId": "new_value"
-                }
-            },
-            {
-                "partId": "part_2",
-                "updates": {
-                    "propertyId": "new_value"
+                    "propertyId_123": "100",
+                    "propertyId_456": "Aluminum"
                 }
             }
         ]
@@ -196,7 +190,6 @@ async def batch_update_metadata(
         token = AuthService.get_valid_token(db, user_id)
         service = MetadataService(token)
         
-        # Convert parts list to expected format
         parts_updates = []
         for part in parts:
             parts_updates.append({
