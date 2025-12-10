@@ -1,6 +1,6 @@
 """
 routes/parts.py - Part Scanner & Metadata Endpoints
-Fixed: Using correct OnShape metadata endpoint
+Includes bounding boxes endpoint
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
@@ -199,6 +199,97 @@ async def scan_assembly_components(
         raise HTTPException(500, str(e))
 
 
+# ============= BOUNDING BOXES =============
+
+@router.get("/bounding-boxes")
+async def get_bounding_boxes(
+    doc_id: str = Query(...),
+    workspace_id: str = Query(...),
+    element_id: str = Query(...),
+    user_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Get bounding boxes for parts in PartStudio or Assembly"""
+    try:
+        if not all([doc_id, workspace_id, element_id, user_id]):
+            raise HTTPException(400, "Missing required parameters")
+        
+        logger.info(f"📏 Fetching bounding boxes...")
+        
+        token = AuthService.get_valid_token(db, user_id)
+        
+        # Try PartStudio endpoint first
+        url = f"https://cad.onshape.com/api/partstudios/d/{doc_id}/w/{workspace_id}/e/{element_id}/boundingboxes"
+        
+        logger.info(f"🔄 Trying PartStudio endpoint: {url}")
+        
+        response = requests.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=120
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Got bounding boxes from PartStudio endpoint")
+            result = response.json()
+            
+            # Handle different response formats
+            if isinstance(result, dict):
+                if "items" in result:
+                    bboxes = result["items"]
+                elif "boundingBoxes" in result:
+                    bboxes = result["boundingBoxes"]
+                else:
+                    bboxes = result
+            elif isinstance(result, list):
+                bboxes = result
+            else:
+                bboxes = []
+            
+            return {
+                "status": "success",
+                "data": bboxes if isinstance(bboxes, list) else [bboxes],
+                "message": f"Retrieved {len(bboxes) if isinstance(bboxes, list) else 1} bounding boxes"
+            }
+        
+        logger.warning(f"⚠️ PartStudio endpoint failed ({response.status_code}), trying parts endpoint...")
+        
+        # Fallback to parts endpoint for Assembly
+        url = f"https://cad.onshape.com/api/parts/d/{doc_id}/w/{workspace_id}/e/{element_id}"
+        
+        response = requests.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=120
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Got parts from Assembly endpoint")
+            parts_data = response.json()
+            
+            if not isinstance(parts_data, list):
+                parts_data = [parts_data]
+            
+            return {
+                "status": "success",
+                "data": parts_data,
+                "message": f"Retrieved {len(parts_data)} parts from Assembly"
+            }
+        
+        logger.error(f"❌ Both endpoints failed")
+        raise HTTPException(400, "Could not access bounding boxes")
+    
+    except Exception as e:
+        logger.error(f"❌ Error: {str(e)}")
+        raise HTTPException(500, str(e))
+
+
 # ============= PART METADATA =============
 
 @router.get("/part-metadata")
@@ -210,10 +301,7 @@ async def get_part_metadata(
     user_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    """
-    Get metadata for a specific part
-    Uses CORRECT OnShape endpoint: /api/metadata/d/{docId}/w/{workId}/e/{elemId}/p/{partId}
-    """
+    """Get metadata for a specific part"""
     try:
         if not all([doc_id, workspace_id, element_id, part_id, user_id]):
             raise HTTPException(400, "Missing required parameters")
@@ -222,7 +310,7 @@ async def get_part_metadata(
         
         token = AuthService.get_valid_token(db, user_id)
         
-        # CORRECT OnShape metadata endpoint
+        # Correct OnShape metadata endpoint
         url = f"https://cad.onshape.com/api/metadata/d/{doc_id}/w/{workspace_id}/e/{element_id}/p/{part_id}"
         
         logger.info(f"🔄 Fetching from: {url}")
