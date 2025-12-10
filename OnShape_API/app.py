@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth, documents, bom, properties, user, bom_conversion, parts, metadata
+from routes import auth, documents, bom, user, parts, metadata
 from database import Base, engine, init_db
 from config import settings
 
