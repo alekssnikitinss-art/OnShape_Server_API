@@ -206,6 +206,62 @@
         <div id="unitsResult" style="margin-top: 10px;"></div>
     </div>
 
+    <!-- ADD THIS SECTION TO index.html BEFORE CLOSING </div> tags -->
+<!-- This is PURE HTML ONLY - No JavaScript -->
+
+<div class="section">
+    <h2>🚀 Advanced Document Management</h2>
+    <p style="color:#666;margin-bottom:15px;">💡 Save with custom names, search elements, complete BOM with dynamic columns</p>
+    
+    <!-- Row 1: Save & Search -->
+    <div class="grid-2">
+        <div style="background:#e8f5e9; padding:15px; border-radius:8px;">
+            <h3>💾 Save with Custom Name</h3>
+            <p style="color:#666; font-size:12px; margin-bottom:10px;">Save documents with user-friendly names instead of IDs</p>
+            <button id="saveNamedBtn" style="background:#28a745; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500; width:100%;">
+                💾 Save Named
+            </button>
+        </div>
+        
+        <div style="background:#fff3e0; padding:15px; border-radius:8px;">
+            <h3>🔍 Search Elements</h3>
+            <p style="color:#666; font-size:12px; margin-bottom:10px;">Find elements by name and type (Assembly, PartStudio, BLOB)</p>
+            <button id="searchElementsBtn" style="background:#ff9800; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500; width:100%;">
+                🔍 Search
+            </button>
+        </div>
+    </div>
+    
+    <!-- Row 2: Complete BOM -->
+    <div style="background:#e3f2fd; padding:15px; border-radius:8px; margin-top:15px;">
+        <h3>📊 Complete BOM with All Columns</h3>
+        <p style="color:#666; font-size:12px; margin-bottom:10px;">Get BOM with EVERY available column - dynamically detects all data fields</p>
+        <div class="button-group">
+            <button id="completeBomBtn" style="background:#2196f3; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500;">
+                📊 Get Complete BOM
+            </button>
+            <button id="renameColumnsBtn" style="background:#1976d2; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500;">
+                🏷️ Rename Columns
+            </button>
+            <button id="addCustomColumnBtn" style="background:#1565c0; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500;">
+                ➕ Add Column
+            </button>
+        </div>
+    </div>
+    
+    <!-- Row 3: Load Saved -->
+    <div style="background:#f3e5f5; padding:15px; border-radius:8px; margin-top:15px;">
+        <h3>📂 Load Saved Documents</h3>
+        <p style="color:#666; font-size:12px; margin-bottom:10px;">Search and filter saved documents by name, type, and date</p>
+        <button id="loadSavedBtn" style="background:#9c27b0; padding:12px 24px; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:500; width:100%;">
+            📂 Load Saved
+        </button>
+    </div>
+</div>
+
+    <!-- Load JavaScript File for Advanced Features -->
+    <script src="/static/js/advanced.js"></script>
+
     <!-- ========== CORRECT SCRIPT LOADING ORDER ========== -->
     <!-- Step 1: Load UI.JS first (display functions) -->
     <script src="/static/js/ui.js"></script>
