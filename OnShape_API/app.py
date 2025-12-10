@@ -75,7 +75,6 @@ app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(bom.router, prefix="/api/bom", tags=["bom"])
-app.include_router(properties.router, prefix="/api/properties", tags=["properties"])
 app.include_router(parts.router, prefix="/api/parts", tags=["parts"])
 app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
 
