@@ -974,6 +974,10 @@ curl -X POST "https://api.onrender.com/api/metadata/update" \
 
 ---
 
-**Last Updated:** 11.12.2025  
+P.S - In Creation AI tools were used, to create both api and documents. In real life testing, results varied, some were reliable and some not, but not enough to finish the API or give it in production, THIS Document was made to sum up, things used and what is the idea of the app, further creation will continue after Internship or after I get accepted to work part time at the company. Places where the reliability is said to be, 80% up to 100%, some of those parts are realistically not that reliable, at the time of testing and when document was last updated (12.12.2025). Some functions and operations in API's WEB APP, are experiments and tools for developer, too test how reliable are some of the given integer values are, to test how if the conversion from INCH to MM, CM, has been made corrently. Some of these operations may not be in the final application.
+
+---
+
+**Last Updated:** 12.12.2025  
 **Version:** 2.2.0  
 **Status:** Active - 60% done</parameter>
