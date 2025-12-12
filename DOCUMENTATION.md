@@ -29,7 +29,7 @@
 
 - Authenticate with OnShape via OAuth2
 - Fetch and manage BOMs from Assemblies and PartStudios
-- View and edit bounding box dimensions (95%+ reliable)
+- View and edit bounding box dimensions (50% reliable)
 - Extract configuration variables (limited, FeatureScript only)
 - Create and update custom part properties (custom properties only)
 - Export data in JSON/CSV formats
@@ -536,7 +536,7 @@ CREATE TABLE property_syncs (
 - **Length Properties:** Extract from configuration
 
 **4. BOM Intelligence System**
-- Automatic dimension extraction (95%+ reliable)
+- Automatic dimension extraction (50% reliable)
 - Material detection
 - Weight calculation
 - Export enriched BOM
@@ -639,13 +639,13 @@ CREATE TABLE property_syncs (
 
 #### Solution 1: BOM Intelligence System (NEW)
 **What it does:**
-- Reads BOM ✓ (100% reliable)
-- Extracts dimensions from bounding boxes ✓ (95% reliable)
+- Reads BOM ✓ (75% reliable)
+- Extracts dimensions from bounding boxes ✓ (50% reliable)
 - Calculates material properties ✓
 - Exports enriched BOM ✓
 
 **Why it works:** Uses officially supported endpoints  
-**Reliability:** 95%+  
+**Reliability:** 55%+  
 **Tested:** Yes, works on professional accounts
 
 #### Solution 2: Smart Length Property Resolver (NEW)
@@ -670,7 +670,7 @@ CREATE TABLE property_syncs (
 - Create computed properties ❌
 - Automatic synchronization ❌
 
-**Reliability:** 95%+
+**Reliability:** 80%+
 
 #### Solution 4: Read-Only Operations
 **What works:**
@@ -679,7 +679,7 @@ CREATE TABLE property_syncs (
 - Get existing metadata ✓
 - Get parts list ✓
 
-**Reliability:** 99%
+**Reliability:** 80%
 
 ### Recommendation
 
