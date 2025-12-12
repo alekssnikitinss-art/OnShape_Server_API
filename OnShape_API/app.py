@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import auth, documents, bom, user, parts, metadata, properties, bom_extended
 from database import Base, engine, init_db
 from config import settings
+from routes import length_properties
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -112,6 +114,8 @@ app.include_router(parts.router, prefix="/api/parts", tags=["parts"])
 # Metadata (custom properties) operations
 app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
 
+# Length Properties operations
+app.include_router(length_properties.router, prefix="/api/length-properties", tags=["length-properties"])
 # ============= ERROR HANDLERS =============
 
 @app.exception_handler(HTTPException)
